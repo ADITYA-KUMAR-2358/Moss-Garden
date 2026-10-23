@@ -20,6 +20,9 @@ RUN pip install --no-cache-dir -r backend/requirements.txt
 COPY backend/ backend/
 COPY --from=frontend /src/frontend/dist frontend/dist
 
+RUN useradd --create-home --uid 10001 moss && chown -R moss:moss /app
+USER moss
+
 WORKDIR /app/backend
 EXPOSE 8000
 

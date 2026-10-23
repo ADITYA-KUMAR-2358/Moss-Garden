@@ -3,8 +3,10 @@
 import json
 import logging
 import secrets
+import time
 from datetime import date, datetime, timezone
 from urllib.parse import urlsplit
+
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse, Response as RawResponse
 from pydantic import BaseModel
@@ -17,12 +19,20 @@ from app.integrations.github import GitHubClient, GitHubError, authorize_url, co
 from app.jobs.nightly import start_nightly
 from app.local_env import upsert_env
 from app.models import Repository, User
-from app.security import decrypt_token, encrypt_token, read_user_id, sign_user_id
-from app.services.garden import delete_user, journal_audio_for, remember_projection, start_from_github, sync_repositories
-
-logger = logging.getLogger(__name__)
+from app.security import SESSION_MAX_AGE, decrypt_token, encrypt_token, read_user_id, sign_user_id
+from app.services.garden import (
+    ai_available,
+    delete_user,
+    export_garden,
+    journal_audio_for,
+    remember_projection,
+    start_from_github,
+    sync_repositories,
+    tend_with_ai,
+)
 from app.services.seed import seed_demo
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 _STATE_COOKIE = "moss_oauth_state"
 _SETUP_COOKIE = "moss_setup_state"
@@ -31,6 +41,10 @@ _SESSION_COOKIE = "moss_session"
 
 class RepoSelection(BaseModel):
     full_names: list[str]
+
+
+class Preferences(BaseModel):
+    ai: bool
 
 
 def current_user(request: Request, session: Session = Depends(get_db)) -> User:
@@ -50,9 +64,19 @@ def _set_session(response: Response, user_id: int) -> None:
         httponly=True,
         samesite="lax",
         secure=get_settings().environment == "production",
-        max_age=60 * 60 * 24 * 30,
+        max_age=SESSION_MAX_AGE,
         path="/",
     )
+
+
+# One sync per player per window. In-process is enough for a single Render instance.
+SYNC_COOLDOWN_SECONDS = 30
+_last_sync: dict[int, float] = {}
+
+
+def _sync_wait(user_id: int) -> int:
+    elapsed = time.monotonic() - _last_sync.get(user_id, -SYNC_COOLDOWN_SECONDS)
+    return max(0, int(SYNC_COOLDOWN_SECONDS - elapsed + 0.999))
 
 
 @router.post("/api/demo/enter")
@@ -97,20 +121,52 @@ def select_repos(body: RepoSelection, user: User = Depends(current_user), sessio
     return {"selected": sorted(chosen)}
 
 
+@router.post("/api/preferences")
+def preferences(body: Preferences, user: User = Depends(current_user), session: Session = Depends(get_db)):
+    if user.is_demo:
+        raise HTTPException(status_code=403, detail="The demo garden is shared, so its settings stay fixed")
+    if body.ai and not ai_available():
+        raise HTTPException(status_code=409, detail="The AI gardener is not set up on this server")
+    user.ai_opt_in = body.ai
+    session.flush()
+    tended = {"named": 0, "journal": False}
+    if body.ai:
+        today = datetime.now(timezone.utc).date()
+        remember_projection(session, user, today)
+        session.commit()
+        tended = tend_with_ai(session, user, today)
+    return {"ai": user.ai_opt_in, **tended}
+
+
+@router.get("/api/export")
+def export(user: User = Depends(current_user), session: Session = Depends(get_db)):
+    payload = json.dumps(export_garden(session, user), indent=2)
+    filename = f"moss-garden-{user.login}-{date.today().isoformat()}.json"
+    return RawResponse(
+        content=payload,
+        media_type="application/json",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @router.post("/api/sync")
 def sync(user: User = Depends(current_user), session: Session = Depends(get_db)):
     if user.is_demo:
         return {"imported": 0, "status": "demo"}
     if not user.token_encrypted:
         raise HTTPException(status_code=400, detail="GitHub is not connected")
+    wait = _sync_wait(user.id)
+    if wait:
+        raise HTTPException(status_code=429, detail=f"The garden just synced. Try again in {wait} seconds.")
     try:
         token = decrypt_token(user.token_encrypted)
     except RuntimeError as error:
-        raise HTTPException(status_code=500, detail=str(error)) from error
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    _last_sync[user.id] = time.monotonic()
     try:
         return sync_repositories(session, user, GitHubClient(token))
     except GitHubError as error:
-        raise HTTPException(status_code=502, detail=str(error)) from error
+        raise HTTPException(status_code=502, detail="GitHub did not answer. Try again in a moment.") from error
 
 
 @router.get("/api/auth/status")
@@ -160,17 +216,21 @@ def github_callback(code: str, state: str, request: Request, session: Session = 
             redirect_uri=_callback_url(request),
         )
         encrypted = encrypt_token(token)
-        login = GitHubClient(token).current_login()
+        profile = GitHubClient(token)._request("https://api.github.com/user")[1]
     except (GitHubError, RuntimeError) as error:
-        raise HTTPException(status_code=502, detail=str(error)) from error
-    profile = GitHubClient(token)._request("https://api.github.com/user")[1]
-    github_id = int(profile["id"]) if isinstance(profile, dict) and profile.get("id") else None
-    user = session.scalar(select(User).where(User.github_id == github_id)) if github_id else None
+        logger.warning("github sign-in failed: %s", type(error).__name__)
+        raise HTTPException(status_code=502, detail="GitHub sign-in did not finish. Try again.") from error
+    if not isinstance(profile, dict) or not profile.get("id") or not profile.get("login"):
+        raise HTTPException(status_code=502, detail="GitHub did not return a profile. Try again.")
+    github_id = int(profile["id"])
+    login = str(profile["login"])[:80]
+    display_name = str(profile.get("name") or login)[:120]
+    user = session.scalar(select(User).where(User.github_id == github_id))
     if user is None:
         user = User(
             github_id=github_id,
             login=login,
-            display_name=str(profile.get("name") or login) if isinstance(profile, dict) else login,
+            display_name=display_name,
             token_encrypted=encrypted,
             is_demo=False,
             created_at=datetime.now(timezone.utc),
@@ -179,7 +239,7 @@ def github_callback(code: str, state: str, request: Request, session: Session = 
         session.flush()
     else:
         user.login = login
-        user.display_name = str(profile.get("name") or login) if isinstance(profile, dict) else login
+        user.display_name = display_name
         user.token_encrypted = encrypted
         session.flush()
     session.commit()
@@ -345,7 +405,10 @@ def logout():
 
 @router.delete("/api/account")
 def remove_account(user: User = Depends(current_user), session: Session = Depends(get_db)):
+    if user.is_demo:
+        raise HTTPException(status_code=403, detail="The demo garden is shared, so it cannot be deleted")
     delete_user(session, user)
+    _last_sync.pop(user.id, None)
     response = Response(content='{"ok":true}', media_type="application/json")
     response.delete_cookie(_SESSION_COOKIE, path="/")
     return response

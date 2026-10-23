@@ -7,7 +7,7 @@ from urllib.parse import quote
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
-from app.ai.schema import parse_name_payload, parse_quality_payload
+from app.ai.schema import parse_journal_payload, parse_name_payload, parse_quality_payload
 from app.config import (
     AUDIO_RAIN_LEVEL,
     AUDIO_SPRING_LEVEL,
@@ -24,6 +24,7 @@ from app.game.quality import score_message
 from app.integrations.backboard import BackboardLLMClient
 from app.integrations.github import CommitCandidate, GitHubClient, GitHubError, RepoCandidate
 from app.models import (
+    AiCache,
     Badge,
     CommitRecord,
     GardenDay,
@@ -37,6 +38,8 @@ from app.models import (
 )
 
 logger = logging.getLogger(__name__)
+AI_MODEL_LABEL = "Gemma 4, an open-weight model, through Backboard"
+AI_NAMES_PER_RUN = 3
 
 
 def _signals(value: str) -> tuple[str, ...]:
@@ -143,7 +146,7 @@ def _view(session: Session, user: User, today: date, xp: int, projection) -> dic
     quiet = 7 - min(active, 7)
     journal = weekly_journal(active_days=active, xp=week_xp, blooms=blooms, quiet_days=max(quiet, 0))
     monday = _week_start(today)
-    _store_journal(session, user, today, monday, journal)
+    journal, journal_source = _store_journal(session, user, today, monday, journal)
     has_audio = _narrate_week(session, user, monday, journal)
     species_labels = {item["id"]: item["label"] for item in PLANT_SPECIES}
     level = projection.level
@@ -154,10 +157,24 @@ def _view(session: Session, user: User, today: date, xp: int, projection) -> dic
     if upcoming > xp:
         next_xp = upcoming
     share_text = f"My moss garden is level {level}, with {xp} XP kept. Small commits, slow growth."
+    counted_days = [row for row in projection.days if row.commit_count]
+    repos_counted = session.scalar(
+        select(func.count(Repository.id)).where(Repository.user_id == user.id, Repository.selected.is_(True))
+    )
+    github_url = None if user.is_demo else f"https://github.com/{quote(user.login)}"
     return {
         "login": user.login,
         "display_name": user.display_name,
         "demo": user.is_demo,
+        "profile": {
+            "avatar_url": f"{github_url}.png?size=160" if github_url else None,
+            "github_url": github_url,
+            "member_since": user.created_at.date().isoformat() if user.created_at else None,
+            "first_commit_day": counted_days[0].day.isoformat() if counted_days else None,
+            "commits": sum(row.commit_count for row in counted_days),
+            "active_days": len(counted_days),
+            "repos": int(repos_counted or 0),
+        },
         "xp": xp,
         "level": level,
         "next_level_xp": next_xp,
@@ -184,17 +201,27 @@ def _view(session: Session, user: User, today: date, xp: int, projection) -> dic
             for plant in plants
         ],
         "badges": [
-            {"id": badge.badge_id, "label": BADGE_LABELS.get(badge.badge_id, badge.badge_id)}
-            for badge in badges
+            {
+                "id": badge.badge_id,
+                "label": BADGE_LABELS.get(badge.badge_id, badge.badge_id),
+                "earned_on": badge.earned_on.isoformat(),
+            }
+            for badge in sorted(badges, key=lambda row: row.earned_on)
         ],
         "week": {
             "active_days": active,
             "steady_days": 4,
             "xp": week_xp,
         },
+        "ai": {
+            "available": ai_available(),
+            "enabled": bool(user.ai_opt_in),
+            "model": AI_MODEL_LABEL,
+            "can_change": not user.is_demo,
+        },
         "journal": {
             "body": journal,
-            "source": "rules",
+            "source": journal_source,
             "week_start": monday.isoformat(),
             "audio": has_audio,
             "narration": has_audio,
@@ -302,7 +329,7 @@ def sync_repositories(session: Session, user: User, client: GitHubClient, today:
     selected = session.scalars(
         select(Repository).where(Repository.user_id == user.id, Repository.selected.is_(True))
     ).all()
-    llm = BackboardLLMClient(get_settings(), session, today)
+    llm = BackboardLLMClient(get_settings(), session, today) if user.ai_opt_in else None
     for repository in selected:
         try:
             for page in client.iter_commits(repository.full_name, user.login, since):
@@ -315,7 +342,135 @@ def sync_repositories(session: Session, user: User, client: GitHubClient, today:
             continue
     remember_projection(session, user, today)
     session.commit()
+    if llm is not None:
+        tend_with_ai(session, user, today, llm)
+        session.commit()
     return {"imported": imported, "status": "ok"}
+
+
+def ai_available() -> bool:
+    settings = get_settings()
+    return bool(
+        settings.ai_enabled
+        and settings.ai_daily_request_budget > 0
+        and settings.backboard_api_key
+        and settings.backboard_llm_provider
+        and settings.backboard_model_name
+    )
+
+
+def tend_with_ai(session: Session, user: User, today: date, client: BackboardLLMClient | None = None) -> dict:
+    """Name new plants and write this week's journal. Only garden counts and species are sent."""
+    if not user.ai_opt_in or user.is_demo or not ai_available():
+        return {"named": 0, "journal": False}
+    client = client or BackboardLLMClient(get_settings(), session, today)
+    named = 0
+    unnamed = session.scalars(
+        select(Plant)
+        .where(Plant.user_id == user.id, Plant.name_source != "model")
+        .order_by(Plant.slot)
+        .limit(AI_NAMES_PER_RUN)
+    ).all()
+    for plant in unnamed:
+        maybe_name_plant(session, user, plant, client)
+        named += int(plant.name_source == "model")
+    session.flush()
+    wrote = _ai_journal(session, user, today, client)
+    return {"named": named, "journal": wrote}
+
+
+def _ai_journal(session: Session, user: User, today: date, client: BackboardLLMClient) -> bool:
+    projection = project(activities_for(session, user.id), today)
+    year, week, _weekday = today.isocalendar()
+    week_days = [row for row in projection.days if row.day.isocalendar()[:2] == (year, week)]
+    active = sum(1 for row in week_days if row.commit_count)
+    week_xp = sum(row.commit_xp + row.bonus_xp for row in week_days)
+    plants = session.scalars(select(Plant).where(Plant.user_id == user.id).order_by(Plant.slot)).all()
+    names = ", ".join(f"{plant.name} ({plant.species})" for plant in plants[-6:]) or "none yet"
+    week_key = _week_key(today)
+    payload = client.complete_json(
+        cache_key=f"journal:{user.id}:{week_key}:{active}:{week_xp}:{len(plants)}",
+        prompt=(
+            "Write a calm weekly garden journal entry of 2 to 4 short sentences. "
+            "Never grade the gardener, never mention streaks, code, or repositories. "
+            "Reply as JSON with one key, body. "
+            f"Facts: {active} cared-for days this week, {week_xp} XP added, "
+            f"{7 - min(active, 7)} quiet days, season {projection.season}, plants: {names}."
+        ),
+    )
+    body = parse_journal_payload(payload)
+    if body is None:
+        return False
+    row = session.scalar(select(Journal).where(Journal.user_id == user.id, Journal.week_key == week_key))
+    if row is None:
+        session.add(Journal(user_id=user.id, week_key=week_key, body=body, source="model", week_start=_week_start(today)))
+    else:
+        row.body = body
+        row.source = "model"
+    session.flush()
+    return True
+
+
+def export_garden(session: Session, user: User) -> dict:
+    """Everything Moss Garden stores about this gardener, except the encrypted GitHub token."""
+    repos = session.scalars(select(Repository).where(Repository.user_id == user.id)).all()
+    repo_names = {row.id: row.full_name for row in repos}
+
+    def rows(model, *order):
+        return session.scalars(select(model).where(model.user_id == user.id).order_by(*order)).all()
+
+    return {
+        "format": "moss-garden-export",
+        "version": 1,
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "gardener": {
+            "login": user.login,
+            "display_name": user.display_name,
+            "github_id": user.github_id,
+            "created_at": user.created_at.isoformat() if user.created_at else None,
+            "ai_opt_in": bool(user.ai_opt_in),
+        },
+        "repositories": [
+            {"full_name": row.full_name, "selected": row.selected, "accessible": row.accessible}
+            for row in repos
+        ],
+        "commits": [
+            {
+                "repository": repo_names.get(row.repository_id),
+                "sha": row.sha,
+                "committed_at": row.committed_at.isoformat(),
+                "message": row.message,
+                "quality": row.quality,
+                "signals": _signals(row.signals),
+                "quality_source": row.quality_source,
+            }
+            for row in rows(CommitRecord, CommitRecord.committed_at)
+        ],
+        "xp_ledger": [
+            {"day": row.day.isoformat(), "amount": row.amount, "reason": row.reason}
+            for row in rows(XpLedger, XpLedger.day)
+        ],
+        "plants": [
+            {
+                "slot": row.slot,
+                "species": row.species,
+                "name": row.name,
+                "description": row.description,
+                "name_source": row.name_source,
+                "maturity": row.maturity,
+                "planted_on": row.planted_on.isoformat(),
+            }
+            for row in rows(Plant, Plant.slot)
+        ],
+        "badges": [
+            {"id": row.badge_id, "label": BADGE_LABELS.get(row.badge_id, row.badge_id), "earned_on": row.earned_on.isoformat()}
+            for row in rows(Badge, Badge.earned_on)
+        ],
+        "journals": [
+            {"week": row.week_key, "source": row.source, "body": row.body}
+            for row in rows(Journal, Journal.week_key)
+        ],
+    }
 
 
 def _upsert_repos(session: Session, user: User, remote: list[RepoCandidate]) -> None:
@@ -345,16 +500,26 @@ def _week_start(today: date) -> date:
     return today - timedelta(days=today.weekday())
 
 
-def _store_journal(session: Session, user: User, today: date, monday: date, body: str) -> None:
+def _week_key(today: date) -> str:
     year, week, _weekday = today.isocalendar()
-    week_key = f"{year}-W{week:02d}"
+    return f"{year}-W{week:02d}"
+
+
+def _store_journal(session: Session, user: User, today: date, monday: date, body: str) -> tuple[str, str]:
+    """Keep this week's rules journal current. A model-written entry wins while AI stays on."""
+    week_key = _week_key(today)
     row = session.scalar(select(Journal).where(Journal.user_id == user.id, Journal.week_key == week_key))
     if row is None:
         session.add(Journal(user_id=user.id, week_key=week_key, body=body, source="rules", week_start=monday))
-    else:
-        row.body = body
-        row.week_start = monday
+        session.flush()
+        return body, "rules"
+    if row.source == "model" and user.ai_opt_in:
+        return row.body, "model"
+    row.body = body
+    row.source = "rules"
+    row.week_start = monday
     session.flush()
+    return body, "rules"
 
 
 def _characters_this_month(session: Session, today: date) -> int:
@@ -423,6 +588,9 @@ def journal_audio_for(session: Session, user: User, week_start: date) -> bytes |
 def delete_user(session: Session, user: User) -> None:
     for model in (JournalAudio, Journal, Badge, Plant, GardenDay, XpLedger, CommitRecord, Repository):
         session.execute(delete(model).where(model.user_id == user.id))
+    # Ids can be reused after a delete, so cached names and journals must not outlive the gardener.
+    for prefix in (f"name:{user.id}:", f"journal:{user.id}:"):
+        session.execute(delete(AiCache).where(AiCache.cache_key.startswith(prefix)))
     session.delete(user)
 
 

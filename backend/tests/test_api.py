@@ -30,13 +30,18 @@ def test_demo_garden_is_stable_and_hides_private_details(tmp_path, monkeypatch):
         assert body["share"]["intent_url"].startswith("https://twitter.com/intent/tweet?text=")
         assert "—" not in body["journal"]["body"]
         assert body["journal"]["audio"] is False
+        assert body["badges"] and all(len(badge["earned_on"]) == 10 for badge in body["badges"])
+        profile = body["profile"]
+        assert profile["avatar_url"] is None and profile["github_url"] is None
+        assert profile["commits"] > 0 and profile["active_days"] > 0
+        assert profile["member_since"] and profile["first_commit_day"]
         assert body["journal"]["week_start"]
         week = date.today() - timedelta(days=date.today().weekday())
         refused = client.get(f"/api/journal/{week.isoformat()}/audio")
         assert refused.status_code == 404
-        deleted = client.delete("/api/account")
-        assert deleted.status_code == 200
-        assert client.get("/api/garden").status_code == 401
+        refused_delete = client.delete("/api/account")
+        assert refused_delete.status_code == 403
+        assert client.get("/api/garden").status_code == 200
 
 
 def test_github_status_is_off_until_the_app_is_configured(tmp_path, monkeypatch):
@@ -154,6 +159,10 @@ def test_a_player_signs_in_with_their_github_account(tmp_path, monkeypatch):
         assert body["login"] == "ada"
         assert body["demo"] is False
         assert body["xp"] > 0
+        assert body["profile"]["avatar_url"] == "https://github.com/ada.png?size=160"
+        assert body["profile"]["github_url"] == "https://github.com/ada"
+        assert body["profile"]["commits"] == 1
+        assert body["profile"]["repos"] == 1
         repos = client.get("/api/repos").json()["repos"]
         selected = [row["full_name"] for row in repos if row["selected"]]
         assert selected == ["ada/moss"]

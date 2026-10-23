@@ -1,7 +1,9 @@
 import { Sound } from "../audio.js";
+import { useReadAloud } from "../speech.js";
 
 export default function Journal({ garden }) {
   const body = garden.journal?.body;
+  const reader = useReadAloud(body ? `This week in the garden. ${body}` : "");
   if (!body) {
     return (
       <section className="sheet journal">
@@ -10,7 +12,7 @@ export default function Journal({ garden }) {
       </section>
     );
   }
-  const source = garden.journal.source === "rules" ? "From a template" : "Written by an open-weight model";
+  const source = garden.journal.source === "rules" ? "From a template" : "Written by Gemma 4, an open-weight model";
 
   async function listen() {
     const response = await fetch(`/api/journal/${garden.journal.week_start}/audio`);
@@ -22,7 +24,7 @@ export default function Journal({ garden }) {
     <section className="sheet journal">
       <p className="overline">Field notes</p>
       <h1 className="journal-title">This week in the garden</h1>
-      <p className="caption">{source}{garden.journal.source === "rules" ? ". AI journal is off." : ""}</p>
+      <p className="caption">{source}{garden.journal.source === "rules" ? ". Turn on the AI gardener in Settings for a written entry." : "."}</p>
       <p>{body}</p>
       <dl className="highlights">
         <div><dt>Active days</dt><dd>{garden.week.active_days}</dd></div>
@@ -32,6 +34,10 @@ export default function Journal({ garden }) {
       <p className="caption">The text above is the transcript.</p>
       {garden.journal.audio ? (
         <button type="button" className="secondary" onClick={listen}>Listen</button>
+      ) : reader.supported ? (
+        <button type="button" className="secondary" aria-pressed={reader.speaking} onClick={reader.toggle}>
+          {reader.speaking ? "Stop reading" : "Read aloud"}
+        </button>
       ) : null}
     </section>
   );

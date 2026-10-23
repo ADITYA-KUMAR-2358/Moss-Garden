@@ -4,11 +4,13 @@ import { Sound } from "./audio.js";
 import Dashboard, { levelName } from "./components/Dashboard.jsx";
 import { gardenSummary, vitalityBand } from "./components/GardenScene.jsx";
 import Marketing from "./components/Marketing.jsx";
+import MobileMenu from "./components/MobileMenu.jsx";
 import SiteFooter from "./components/SiteFooter.jsx";
 import Collection from "./pages/Collection.jsx";
 import Connect from "./pages/Connect.jsx";
 import Explore from "./pages/Explore.jsx";
 import Journal from "./pages/Journal.jsx";
+import Profile, { Avatar } from "./pages/Profile.jsx";
 import LevelUp from "./pages/LevelUp.jsx";
 import Settings from "./pages/Settings.jsx";
 import Share from "./pages/Share.jsx";
@@ -31,6 +33,7 @@ export default function App() {
   const [soundOn, setSoundOn] = useState(false);
   const [githubReady, setGithubReady] = useState(false);
   const [githubSetup, setGithubSetup] = useState(false);
+  const [aiBusy, setAiBusy] = useState(false);
   const [themeChoice, setThemeChoice] = useState(localStorage.getItem("moss-theme") || "system");
   const [view, setView] = useState("garden");
   const [gate, setGate] = useState("home");
@@ -57,6 +60,10 @@ export default function App() {
   function flipTheme() {
     onTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark");
   }
+
+  const ownGarden = Boolean(garden && !garden.demo);
+  const startLabel = ownGarden ? "Open your garden" : "Grow your garden";
+  const startHref = ownGarden ? "#garden" : "/auth/github";
 
   const darkTheme = themeChoice === "dark" || (
     themeChoice === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches
@@ -194,6 +201,23 @@ export default function App() {
     window.scrollTo(0, 0);
   }
 
+  function goSection(event, id) {
+    event.preventDefault();
+    setAtHome(true);
+    setGate("home");
+    history.pushState(null, "", `#${id}`);
+    window.setTimeout(() => {
+      const target = document.getElementById(id);
+      if (target) target.scrollIntoView({ block: "start" });
+      else window.scrollTo(0, 0);
+    }, 0);
+  }
+
+  function openProfile() {
+    setView("profile");
+    window.scrollTo(0, 0);
+  }
+
   function openConnect(event) {
     event?.preventDefault();
     setAtHome(true);
@@ -207,6 +231,20 @@ export default function App() {
     if (githubReady) window.location.href = "/auth/github";
     else if (githubSetup) window.location.href = "/auth/github/setup";
   }
+
+  function growGarden(event) {
+    event?.preventDefault();
+    if (ownGarden) showApp();
+    else if (githubReady) window.location.href = "/auth/github";
+    else openConnect();
+  }
+
+  function exploreDemo() {
+    if (garden?.demo) showApp();
+    else enterDemo();
+  }
+
+  const onDemo = ownGarden ? null : exploreDemo;
 
   async function enterDemo() {
     setNote("Opening the demo garden.");
@@ -230,6 +268,34 @@ export default function App() {
     const next = !soundOn;
     Sound.setEnabled(next);
     setSoundOn(next);
+  }
+
+  async function setAi(next) {
+    setAiBusy(true);
+    let response;
+    try {
+      response = await fetch("/api/preferences", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ai: next }),
+      });
+    } catch {
+      response = null;
+    }
+    setAiBusy(false);
+    if (!response?.ok) {
+      const detail = response ? (await response.json().catch(() => ({}))).detail : null;
+      pushToast({ tone: "warn", message: detail || "The AI gardener setting could not be saved." });
+      return;
+    }
+    const payload = await response.json();
+    await loadGarden();
+    pushToast({
+      tone: "ok",
+      message: next
+        ? `AI gardener on. ${payload.named ? `${payload.named} plant${payload.named === 1 ? "" : "s"} renamed. ` : ""}${payload.journal ? "This week's journal was rewritten." : ""}`.trim()
+        : "AI gardener off. Plain summaries from here on.",
+    });
   }
 
   useEffect(() => {
@@ -276,11 +342,12 @@ export default function App() {
       response = { ok: false };
     }
     if (!response.ok) {
+      const detail = response.json ? (await response.json().catch(() => ({}))).detail : null;
       pushToast({
         tone: "warn",
-        message: "Sync paused. GitHub didn\u2019t respond.",
-        actionLabel: "Try again",
-        action: () => syncRepos(),
+        message: detail || "Sync paused. GitHub didn\u2019t respond.",
+        actionLabel: response.status === 429 ? undefined : "Try again",
+        action: response.status === 429 ? undefined : () => syncRepos(),
       });
       return;
     }
@@ -367,25 +434,56 @@ export default function App() {
           {garden && !atHome ? (
             <button type="button" className="sound-toggle" aria-pressed={soundOn} onClick={onSound}>
               {soundOn ? <SpeakerHigh size={16} weight="fill" aria-hidden="true" /> : <SpeakerSlash size={16} weight="fill" aria-hidden="true" />}
-              {soundOn ? "Sound on" : "Sound off"}
+              <span className="sound-label">{soundOn ? "Sound on" : "Sound off"}</span>
             </button>
-          ) : garden ? (
-            <>
-              <button type="button" className="sign-in" onClick={openConnect}>Sign in</button>
-              <button type="button" className="primary" onClick={showApp}>Grow your garden</button>
-            </>
           ) : (
-            <>
-              <a className="sign-in" href="/auth/github" onClick={openConnect}>Sign in</a>
-              <a className="primary" href="/auth/github" onClick={openConnect}>Grow your garden</a>
-            </>
+            <a className="primary" href={startHref} onClick={growGarden}>{startLabel}</a>
           )}
           {garden && !atHome ? (
-            <span className="who">
-              <span className="avatar" aria-hidden="true">{(garden.display_name || garden.login || "?").slice(0, 1).toUpperCase()}</span>
-              <span className="mono">@{garden.login}</span>
-            </span>
+            <button
+              type="button"
+              className="who"
+              aria-current={view === "profile" ? "page" : undefined}
+              aria-label={`View profile for @${garden.login}`}
+              onClick={openProfile}
+            >
+              <Avatar garden={garden} size={32} />
+              <span className="mono who-login">@{garden.login}</span>
+            </button>
           ) : null}
+          {garden && !atHome ? (
+            <MobileMenu className="app-menu">
+              <button type="button" className="menu-profile" aria-current={view === "profile" ? "page" : undefined} onClick={openProfile}>
+                <Avatar garden={garden} size={28} />
+                <span>
+                  <strong>Profile</strong>
+                  <span className="mono">@{garden.login}</span>
+                </span>
+              </button>
+              <button type="button" aria-current={view === "share" ? "page" : undefined} onClick={() => setView("share")}>Share card</button>
+              <a href="/" onClick={showHome}>About Moss Garden</a>
+              <button type="button" aria-pressed={darkTheme} onClick={flipTheme}>
+                {darkTheme ? "Switch to light theme" : "Switch to dark theme"}
+              </button>
+              <hr />
+              {garden.demo ? (
+                <a className="primary" href="/auth/github" onClick={growGarden}>Grow your own garden</a>
+              ) : null}
+              <button type="button" className="menu-danger" onClick={logout}>
+                {garden.demo ? "Leave demo garden" : "Log out"}
+              </button>
+            </MobileMenu>
+          ) : (
+            <MobileMenu className="site-menu">
+              <a href="#how" onClick={(event) => goSection(event, "how")}>How it grows</a>
+              <a href="#journal" onClick={(event) => goSection(event, "journal")}>Journal</a>
+              <a href="#privacy" onClick={(event) => goSection(event, "privacy")}>Privacy</a>
+              <a href="#faq" onClick={(event) => goSection(event, "faq")}>FAQ</a>
+              {onDemo ? <button type="button" onClick={onDemo}>Explore a demo garden</button> : null}
+              <hr />
+              <a className="primary" href={startHref} onClick={growGarden}>{startLabel}</a>
+            </MobileMenu>
+          )}
         </div>
       </header>
 
@@ -404,8 +502,10 @@ export default function App() {
               soundOn={soundOn}
               onSound={onSound}
               repos={repos}
-              onGitHub={openConnect}
+              onGitHub={growGarden}
               onToggleRepo={onToggleRepo}
+              onAi={setAi}
+              aiBusy={aiBusy}
               onSync={syncRepos}
               onShare={() => setView("share")}
               onDescribe={() => setDescribed((value) => !value)}
@@ -417,6 +517,7 @@ export default function App() {
             />
           ) : null}
           {view === "explore" ? <Explore garden={garden} onOpen={setView} /> : null}
+          {view === "profile" ? <Profile garden={garden} onOpen={setView} onLogout={logout} /> : null}
           {view === "share" ? <Share garden={garden} /> : null}
           {view === "garden" ? (
             <Dashboard
@@ -440,12 +541,24 @@ export default function App() {
           githubReady={githubReady}
           githubSetup={githubSetup}
           onContinue={continueGitHub}
-          onDemo={enterDemo}
+          onDemo={exploreDemo}
           onRetry={() => setConnectPhase("ready")}
           onGarden={showApp}
         />
       ) : (
-        <Marketing onDemo={enterDemo} onGitHub={openConnect} onEnter={showApp} hasGarden={Boolean(garden)} note={note} />
+        <Marketing
+          onDemo={onDemo}
+          onStart={growGarden}
+          startLabel={startLabel}
+          startHref={startHref}
+          hasGarden={Boolean(garden)}
+          note={note}
+          ai={garden?.ai}
+          onAi={setAi}
+          aiBusy={aiBusy}
+          soundOn={soundOn}
+          onSound={onSound}
+        />
       )}
 
       {garden && !atHome ? (
@@ -455,7 +568,7 @@ export default function App() {
           <button type="button" aria-current={view === "journal" ? "page" : undefined} onClick={() => setView("journal")}><BookOpen size={20} weight={view === "journal" ? "fill" : "regular"} aria-hidden="true" />Journal</button>
           <button type="button" aria-current={view === "settings" ? "page" : undefined} onClick={() => setView("settings")}><Gear size={20} weight={view === "settings" ? "fill" : "regular"} aria-hidden="true" />Settings</button>
         </nav>
-      ) : <SiteFooter onDemo={enterDemo} onGitHub={openConnect} />}
+      ) : <SiteFooter onDemo={onDemo} onStart={ownGarden ? growGarden : null} />}
       <Toasts items={toasts} onDismiss={dismissToast} />
     </>
   );

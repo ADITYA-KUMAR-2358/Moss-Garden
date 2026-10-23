@@ -3,10 +3,12 @@
 import hashlib
 import hmac
 import secrets
+import time
 
 from app.config import get_settings
 
 _DEV_SESSION_SECRET = secrets.token_hex(32)
+SESSION_MAX_AGE = 60 * 60 * 24 * 30
 
 
 def session_secret() -> str:
@@ -18,22 +20,29 @@ def session_secret() -> str:
     return _DEV_SESSION_SECRET
 
 
-def sign_user_id(user_id: int) -> str:
-    payload = str(user_id)
-    signature = hmac.new(session_secret().encode(), payload.encode(), hashlib.sha256).hexdigest()
-    return f"{payload}.{signature}"
+def _signature(payload: str) -> str:
+    return hmac.new(session_secret().encode(), f"session:{payload}".encode(), hashlib.sha256).hexdigest()
 
 
-def read_user_id(cookie: str | None) -> int | None:
-    if not cookie or "." not in cookie:
+def sign_user_id(user_id: int, issued_at: int | None = None) -> str:
+    issued = int(time.time()) if issued_at is None else issued_at
+    payload = f"{user_id}.{issued}"
+    return f"{payload}.{_signature(payload)}"
+
+
+def read_user_id(cookie: str | None, now: int | None = None) -> int | None:
+    """Return the signed user id, or None for a forged, malformed or expired cookie."""
+    if not cookie or cookie.count(".") != 2 or len(cookie) > 200:
         return None
-    payload, signature = cookie.rsplit(".", 1)
-    expected = hmac.new(session_secret().encode(), payload.encode(), hashlib.sha256).hexdigest()
-    if not hmac.compare_digest(signature, expected):
+    user_part, issued_part, signature = cookie.split(".")
+    if not user_part.isdigit() or not issued_part.isdigit():
         return None
-    if not payload.isdigit():
+    if not hmac.compare_digest(signature, _signature(f"{user_part}.{issued_part}")):
         return None
-    return int(payload)
+    age = (int(time.time()) if now is None else now) - int(issued_part)
+    if age < -300 or age > SESSION_MAX_AGE:
+        return None
+    return int(user_part)
 
 
 def encrypt_token(token: str) -> str:
@@ -45,9 +54,12 @@ def encrypt_token(token: str) -> str:
 
 def decrypt_token(stored: str) -> str:
     key = _fernet_key()
-    from cryptography.fernet import Fernet
+    from cryptography.fernet import Fernet, InvalidToken
 
-    return Fernet(key).decrypt(stored.encode()).decode()
+    try:
+        return Fernet(key).decrypt(stored.encode()).decode()
+    except InvalidToken as error:
+        raise RuntimeError("The stored GitHub token could not be read. Sign in with GitHub again.") from error
 
 
 def _fernet_key() -> bytes:

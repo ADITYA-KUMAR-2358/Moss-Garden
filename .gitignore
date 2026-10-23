@@ -11,7 +11,7 @@ __pycache__/
 .vscode/
 frontend/node_modules/
 reports/junit.xml
-docs/testing-report.xlsx
-docs/
 .cursor/
 reports/
+docs
+AGENTS.md

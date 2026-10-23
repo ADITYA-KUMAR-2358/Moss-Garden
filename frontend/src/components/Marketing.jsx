@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { CaretDown, CaretUp, Check, LockSimple, Play, SpeakerSlash, X } from "@phosphor-icons/react";
-import offToggle from "../art/toggle/off.svg";
-import heroGarden from "../art/marketing/hero-garden.png";
+import { CaretDown, CaretUp, Check, LockSimple, Play, SpeakerHigh, SpeakerSlash, Stop, X } from "@phosphor-icons/react";
+import { useReadAloud } from "../speech.js";
+import HeroGarden from "./HeroGarden.jsx";
+import Toggle from "./Toggle.jsx";
 import sprout from "../art/marketing/sprout.png";
 import stages from "../art/marketing/stages.png";
 import levelSeedbed from "../art/marketing/level-seedbed.png";
@@ -18,7 +19,7 @@ const STEPS = [
     kind: "commit",
     kicker: "01 · Commit",
     title: "You push a small change.",
-    body: "Any commit, pull request or review to a repository you connected counts. They are roughly equal units, so there is nothing to game.",
+    body: "Every commit you author in a repository you connected counts. Commits are roughly equal units, and a daily cap keeps big pushes from counting extra, so there is nothing to game.",
   },
   {
     kind: "grow",
@@ -30,7 +31,7 @@ const STEPS = [
     kind: "reflect",
     kicker: "03 · Reflect",
     title: "A journal notices what changed.",
-    body: "Each week, a short entry describes what grew and where it came from. Written by an optional on-device model, or as a plain summary.",
+    body: "Each week, a short entry describes what grew. Gemma 4 writes it if you turn the AI gardener on; otherwise it is a plain summary.",
   },
 ];
 
@@ -97,44 +98,65 @@ const PLANTS = [
 
 const QUESTIONS = [
   ["What happens if I take a break?", "Nothing is lost. Lifetime XP stays where it is; only vitality settles. Your garden will be here when you return."],
-  ["Does it count lines of code?", "No. Commits, pull requests and reviews count as small, roughly equal units, so there is no reason to pad your work."],
-  ["Do I have to use the AI?", "No. It is off by default. Without it, plants get species names and the journal is a plain weekly summary."],
+  ["Does it count lines of code?", "No. Each commit you author counts as a small, roughly equal unit, so there is no reason to pad your work."],
+  ["Do I have to use the AI?", "No. It is off until you turn it on in Settings. Without it, plants get template names and the journal is a plain weekly summary."],
   ["Will it ever play sound on its own?", "Never. Audio is off by default and only plays when you press play."],
-  ["Can I delete my garden?", "Yes, from Settings. You can export it first; deleting is permanent and asks you to confirm."],
+  ["Can I delete my garden?", "Yes, from Settings. You can export it as a JSON file first; deleting is permanent and asks you to confirm."],
 ];
 
-export default function Marketing({ onDemo, onGitHub, onEnter, hasGarden, note }) {
+const SAMPLE_JOURNAL = [
+  "Three quiet days, then a long Thursday in garden-api. Most of the work was small: a retry for a flaky request, a clearer error message, one test that had been skipped for months.",
+  "The moss cushion by the stones filled in at its edges. Near the front, a lantern bud appeared, the first sign of late autumn. It will open when it is ready.",
+];
+
+function aiControl({ ai, hasGarden, busy, onAi, onGitHub }) {
+  if (!hasGarden) {
+    return {
+      toggle: <Toggle checked={false} label="Sign in to turn on the AI gardener" onClick={onGitHub} />,
+      note: "Sign in first. The switch is yours alone and stays off until you flip it.",
+    };
+  }
+  if (!ai?.can_change) {
+    return {
+      toggle: <Toggle checked={false} disabled label="AI gardener" />,
+      note: "The shared demo garden keeps the AI gardener off. Sign in with GitHub to try it.",
+    };
+  }
+  if (!ai.available) {
+    return {
+      toggle: <Toggle checked={false} disabled label="AI gardener" />,
+      note: "This server has not set up a model yet, so plain summaries are used.",
+    };
+  }
+  return {
+    toggle: <Toggle checked={ai.enabled} busy={busy} disabled={busy} label="AI gardener" onClick={() => onAi(!ai.enabled)} />,
+    note: ai.enabled ? "On for your garden. New plants get names on the next sync." : "Off for your garden.",
+  };
+}
+
+export default function Marketing({ onDemo, onStart, startLabel, startHref, hasGarden, note, ai, onAi, aiBusy, soundOn, onSound }) {
   const [openQuestion, setOpenQuestion] = useState(0);
-  const Start = hasGarden ? "button" : "a";
-  const startProps = hasGarden
-    ? { type: "button", onClick: onEnter }
-    : { href: "/auth/github", onClick: onGitHub };
+  const reader = useReadAloud(["The week the moss settled.", ...SAMPLE_JOURNAL].join(" "));
+  const aiUi = aiControl({ ai, hasGarden, busy: aiBusy, onAi, onGitHub: onStart });
 
   return (
     <main id="content" className="page market">
       <section className="m-hero">
         <div className="m-hero-copy">
           <p className="m-kicker">A slow-productivity game for developers</p>
-          <h1>
-            <span>Small commits. Slow</span>
-            <span>growth. A garden</span>
-            <span>that remembers.</span>
-          </h1>
+          <h1 className="m-title">Moss <em>Garden</em></h1>
+          <p className="m-tagline">Small commits. Slow growth. A garden that remembers.</p>
           <p className="m-lede">
             Moss Garden turns your GitHub contributions into a miniature garden that keeps everything it grows. No streaks to protect, no countdowns, nothing to lose.
           </p>
           <div className="m-actions">
-            <Start className="primary" {...startProps}>Grow your garden</Start>
-            <button type="button" className="secondary" onClick={onDemo}>Explore a demo garden</button>
+            <a className="primary" href={startHref} onClick={onStart}>{startLabel}</a>
+            {onDemo ? <button type="button" className="secondary" onClick={onDemo}>Explore a demo garden</button> : null}
           </div>
           <p className="m-fine">Reads contribution activity only. Never your code.</p>
           {note ? <p className="note" role="status">{note}</p> : null}
         </div>
-        <img
-          className="m-hero-art"
-          src={heroGarden}
-          alt="A late-autumn garden. Autumn lantern, seasonal, level 11. Pocket maple, grew from 412 commits."
-        />
+        <HeroGarden />
       </section>
 
       <section className="m-section" id="how" aria-labelledby="how-title">
@@ -238,14 +260,25 @@ export default function Marketing({ onDemo, onGitHub, onEnter, hasGarden, note }
         <article>
           <p className="m-kicker">Week 42 · 13–19 October · Late autumn</p>
           <h3>The week the moss settled</h3>
-          <p>Three quiet days, then a long Thursday in garden-api. Most of the work was small: a retry for a flaky request, a clearer error message, one test that had been skipped for months.</p>
-          <p>The moss cushion by the stones filled in at its edges. Near the front, a lantern bud appeared, the first sign of late autumn. It will open when it is ready.</p>
+          {SAMPLE_JOURNAL.map((paragraph) => <p key={paragraph.slice(0, 20)}>{paragraph}</p>)}
           <div className="m-listen-row">
-            <button type="button" className="m-listen" disabled>
-              <Play size={14} weight="fill" aria-hidden="true" />
-              Listen · 3:40
+            <button
+              type="button"
+              className="m-listen"
+              aria-pressed={reader.speaking}
+              disabled={!reader.supported}
+              onClick={reader.toggle}
+            >
+              {reader.speaking
+                ? <Stop size={14} weight="fill" aria-hidden="true" />
+                : <Play size={14} weight="fill" aria-hidden="true" />}
+              {reader.speaking ? "Stop" : "Listen"}
             </button>
-            <p>Sound is off until you press play. Transcript is the text above.</p>
+            <p>
+              {reader.supported
+                ? "Read aloud by your browser's voice, only when you press play. Transcript is the text above."
+                : "This browser cannot read aloud. The text above is the full entry."}
+            </p>
           </div>
         </article>
       </section>
@@ -280,24 +313,22 @@ export default function Marketing({ onDemo, onGitHub, onEnter, hasGarden, note }
         <div className="m-pair m-ruled">
           <article>
             <div className="m-row">
-              <h3>AI gardener</h3>
-              <span className="m-switch">
-                <img src={offToggle} alt="" width={36} height={20} />
-                Off
-              </span>
+              <h3 id="ai-gardener">AI gardener</h3>
+              <span className="m-switch">{aiUi.toggle}</span>
             </div>
-            <p>An open-weight model names new plants and writes the weekly journal. It runs on your device; nothing about your work is sent to a hosted AI service. When it is off, you get plain, accurate summaries instead.</p>
-            <p className="m-meta">open-weight · on-device · optional</p>
+            <p>Gemma 4, an open-weight model, names new plants and writes the weekly journal. It runs through Backboard, a hosted gateway, and only sees garden counts and plant species, never your code or repository names. When it is off, you get plain, accurate summaries instead.</p>
+            <p className="m-ai-note">{aiUi.note}</p>
+            <p className="m-meta">open-weight · Gemma 4 · off until you turn it on</p>
           </article>
           <article>
             <div className="m-row">
               <h3>Sound &amp; narration</h3>
-              <span className="m-sound-pill">
-                <SpeakerSlash size={16} aria-hidden="true" />
-                Sound off
-              </span>
+              <button type="button" className="m-sound-pill" aria-pressed={soundOn} onClick={onSound}>
+                {soundOn ? <SpeakerHigh size={16} weight="fill" aria-hidden="true" /> : <SpeakerSlash size={16} aria-hidden="true" />}
+                {soundOn ? "Sound on" : "Sound off"}
+              </button>
             </div>
-            <p>Soft ambient sound and a narrated journal are available, but audio is off by default and never autoplays. Every narration has a full transcript.</p>
+            <p>Soft ambient sound and a read-aloud journal are available, but audio is off by default and never autoplays. Every narration has a full transcript.</p>
             <p className="m-meta">off by default · never autoplays · transcripts always</p>
           </article>
         </div>
@@ -313,7 +344,7 @@ export default function Marketing({ onDemo, onGitHub, onEnter, hasGarden, note }
         <div>
           <h3>We read</h3>
           <ul className="m-checks">
-            {["Contribution counts and dates", "Names of repositories you choose to include", "Your public profile name and avatar"].map((item) => (
+            {["Commits you authored: date, message and ID", "Names of repositories you choose to include", "Your public profile name and avatar"].map((item) => (
               <li key={item}><Check size={16} weight="bold" aria-hidden="true" />{item}</li>
             ))}
           </ul>
@@ -358,8 +389,8 @@ export default function Marketing({ onDemo, onGitHub, onEnter, hasGarden, note }
         <p className="m-kicker">Start with one small commit</p>
         <h2>Grow something that stays.</h2>
         <div className="m-actions">
-          <Start className="primary" {...startProps}>Grow your garden</Start>
-          <button type="button" className="m-text-link" onClick={onDemo}>Explore a demo garden</button>
+          <a className="primary" href={startHref} onClick={onStart}>{startLabel}</a>
+          {onDemo ? <button type="button" className="m-text-link" onClick={onDemo}>Explore a demo garden</button> : null}
         </div>
       </section>
     </main>

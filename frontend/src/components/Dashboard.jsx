@@ -181,7 +181,7 @@ export default function Dashboard({ garden, onOpen, onVisit }) {
               <PlantMark species={newest.species} stage={newest.stage} />
               <div>
                 <h3>{newest.name}</h3>
-                <p className="caption">{newest.label} · {newest.stage}. {newest.name_source === "ai" ? "Named by AI" : "Named from template"}.</p>
+                <p className="caption">{newest.label} · {newest.stage}. {newest.name_source === "model" ? "Named by Gemma 4" : "Named from template"}.</p>
               </div>
             </div>
           </section>

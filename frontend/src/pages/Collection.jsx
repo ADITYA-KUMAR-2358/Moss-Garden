@@ -3,37 +3,16 @@ import { Sound } from "../audio.js";
 import specimenFern from "../art/garden/specimen-fern.svg";
 import { plantSrc } from "../art/gardenLayers.js";
 import { SEASONS } from "../components/Dashboard.jsx";
-import firstSprout from "../art/badges/first-sprout.png";
-import firstSproutOff from "../art/badges/first-sprout-off.png";
-import firstBloom from "../art/badges/first-bloom.png";
-import firstBloomOff from "../art/badges/first-bloom-off.png";
-import caretaker from "../art/badges/caretaker.png";
-import caretakerOff from "../art/badges/caretaker-off.png";
-import level3 from "../art/badges/level-3.png";
-import level3Off from "../art/badges/level-3-off.png";
-import mature from "../art/badges/mature.png";
-import matureOff from "../art/badges/mature-off.png";
-import sevenDays from "../art/badges/seven-days.png";
-import sevenDaysOff from "../art/badges/seven-days-off.png";
-import steadyWeek from "../art/badges/steady-week.png";
-import steadyWeekOff from "../art/badges/steady-week-off.png";
+import BadgeMedal from "../components/BadgeMedal.jsx";
+import { badgeStates } from "../badges.js";
 
 const TABS = ["Plants", "Badges", "Seasons"];
 const SEASON_PLATES = ["Early spring", "Late spring", "Early summer", "Late summer", "Early autumn", "Late autumn", "Early winter", "Late winter"];
 
-const BADGE_ART = [
-  ["first-commit", firstSprout, firstSproutOff, "First sprout"],
-  ["bloom", firstBloom, firstBloomOff, "First bloom"],
-  ["caretaker", caretaker, caretakerOff, "Caretaker"],
-  ["level-3", level3, level3Off, "Level 3"],
-  ["mature", mature, matureOff, "First mature plant"],
-  ["seven-days", sevenDays, sevenDaysOff, "Seven cared-for days"],
-  ["steady-week", steadyWeek, steadyWeekOff, "Steady week"],
-];
-
 export default function Collection({ garden, focusPlant, onOpen }) {
   const [tab, setTab] = useState("Plants");
   const plants = garden.plants || [];
+  const badges = badgeStates(garden);
   const current = SEASONS[garden.season] || "Late autumn";
 
   return (
@@ -65,7 +44,7 @@ export default function Collection({ garden, focusPlant, onOpen }) {
                 <div className="specimen-copy">
                   <h2 className="plant-name">{plant.name}</h2>
                   <p className="specimen-meta">{plant.label} · {plant.stage}</p>
-                  <p className="specimen-found">{plant.name_source === "ai" ? "Named by an open-weight model" : "Named from a template"}</p>
+                  <p className="specimen-found">{plant.name_source === "model" ? "Named by Gemma 4" : "Named from a template"}</p>
                 </div>
               </li>
             ))}
@@ -81,24 +60,14 @@ export default function Collection({ garden, focusPlant, onOpen }) {
 
       {tab === "Badges" ? (
         <>
-          <ul className="badge-grid">
-            {BADGE_ART.map(([id, earnedArt, lockedArt, name]) => {
-              const earned = garden.badges.some((badge) => badge.id === id);
-              return (
-                <li key={id}>
-                  <img src={earned ? earnedArt : lockedArt} alt={earned ? `${name}, earned` : `${name}, not yet earned`} />
-                </li>
-              );
-            })}
+          <p className="caption medal-count">
+            {badges.filter((badge) => badge.isEarned).length} of {badges.length} earned
+          </p>
+          <ul className="medal-grid">
+            {[...badges.filter((badge) => badge.isEarned), ...badges.filter((badge) => !badge.isEarned)].map((badge) => (
+              <li key={badge.id}><BadgeMedal badge={badge} /></li>
+            ))}
           </ul>
-          {garden.badges.some((badge) => !BADGE_ART.some(([id]) => id === badge.id)) ? (
-            <ul className="badges">
-              {garden.badges.filter((badge) => !BADGE_ART.some(([id]) => id === badge.id)).map((badge) => (
-                <li key={badge.id}>{badge.label}</li>
-              ))}
-            </ul>
-          ) : null}
-          <p className="caption">More badges appear as your garden grows.</p>
         </>
       ) : null}
 

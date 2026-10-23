@@ -1,5 +1,7 @@
 """Commit-score schema. Model text is untrusted until it passes these checks."""
 
+import re
+
 from app.game.quality import Quality
 
 _SIGNALS = {"maintenance", "test", "docs", "fix", "feature", "uncertain"}
@@ -25,6 +27,25 @@ def parse_quality_payload(data: object) -> Quality | None:
     if not isinstance(note, str) or len(note) > 180:
         return None
     return Quality(float(weight), tuple(clean), "model", note)
+
+
+_JOURNAL_BANNED = ("streak", "<", ">", "http://", "https://", "```")
+_DASH = re.compile(r"\s*[\u2013\u2014]\s*")
+
+
+def parse_journal_payload(data: object) -> str | None:
+    if not isinstance(data, dict):
+        return None
+    body = data.get("body")
+    if not isinstance(body, str):
+        return None
+    body = " ".join(_DASH.sub(", ", body).split())
+    if len(body) < 20 or len(body) > 700:
+        return None
+    lowered = body.lower()
+    if any(mark in lowered for mark in _JOURNAL_BANNED):
+        return None
+    return body
 
 
 def parse_name_payload(data: object) -> tuple[str, str] | None:

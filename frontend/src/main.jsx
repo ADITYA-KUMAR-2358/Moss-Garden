@@ -1,6 +1,7 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import "@fontsource-variable/fraunces/wght.css";
+import "@fontsource-variable/fraunces/opsz.css";
+import "@fontsource-variable/fraunces/opsz-italic.css";
 import "@fontsource-variable/inter/wght.css";
 import "@fontsource/ibm-plex-mono/400.css";
 import "@fontsource-variable/caveat/wght.css";

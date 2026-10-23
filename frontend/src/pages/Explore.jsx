@@ -42,7 +42,7 @@ export default function Explore({ garden, onOpen }) {
               <h2 className="plant-name">{selected.name}</h2>
               <p className="caption">{selected.label} · {selected.stage}</p>
               <p>{selected.description || "Grew from commits kept in this garden."}</p>
-              <p className="caption">{selected.name_source === "ai" ? "Named by AI" : "Named from template"}</p>
+              <p className="caption">{selected.name_source === "model" ? "Named by Gemma 4" : "Named from template"}</p>
               <button type="button" className="text-link" onClick={() => onOpen("collection")}>View in collection</button>
             </>
           ) : (

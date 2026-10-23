@@ -11,6 +11,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    false,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -26,6 +27,7 @@ class User(Base):
     display_name: Mapped[str] = mapped_column(String(120))
     token_encrypted: Mapped[str | None] = mapped_column(Text)
     is_demo: Mapped[bool] = mapped_column(default=False)
+    ai_opt_in: Mapped[bool] = mapped_column(default=False, server_default=false())
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 

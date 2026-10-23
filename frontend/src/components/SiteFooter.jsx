@@ -1,6 +1,6 @@
 import { GithubLogo, Heart, Plant } from "@phosphor-icons/react";
 
-export default function SiteFooter({ onDemo }) {
+export default function SiteFooter({ onDemo, onStart }) {
   return (
     <footer className="site-footer">
       <div className="foot-grid">
@@ -14,7 +14,8 @@ export default function SiteFooter({ onDemo }) {
         <nav aria-label="Product">
           <h2>Product</h2>
           <a href="#how">How it grows</a>
-          <button type="button" onClick={onDemo}>Demo garden</button>
+          {onStart ? <a href="#garden" onClick={onStart}>Your garden</a> : null}
+          {onDemo ? <button type="button" onClick={onDemo}>Demo garden</button> : null}
           <a href="#journal">Journal</a>
         </nav>
         <nav aria-label="Trust">
