@@ -30,6 +30,7 @@ export default function App() {
   const [status, setStatus] = useState("");
   const [soundOn, setSoundOn] = useState(false);
   const [githubReady, setGithubReady] = useState(false);
+  const [githubSetup, setGithubSetup] = useState(false);
   const [themeChoice, setThemeChoice] = useState(localStorage.getItem("moss-theme") || "system");
   const [view, setView] = useState("garden");
   const [gate, setGate] = useState("home");
@@ -143,8 +144,16 @@ export default function App() {
     Sound.armGesture();
     fetch("/api/auth/status")
       .then((response) => response.json())
-      .then((payload) => setGithubReady(Boolean(payload.github)))
+      .then((payload) => {
+        setGithubReady(Boolean(payload.github));
+        setGithubSetup(Boolean(payload.setup));
+      })
       .catch(() => setGithubReady(false));
+    const query = new URLSearchParams(window.location.search);
+    if (query.get("github") === "off") {
+      history.replaceState(null, "", window.location.pathname);
+      setGate("connect");
+    }
     loadGarden();
     const syncHash = () => setAtHome(window.location.hash !== "#garden");
     window.addEventListener("hashchange", syncHash);
@@ -195,7 +204,8 @@ export default function App() {
   }
 
   function continueGitHub() {
-    window.location.href = githubReady ? "/auth/github" : "/auth/github/setup";
+    if (githubReady) window.location.href = "/auth/github";
+    else if (githubSetup) window.location.href = "/auth/github/setup";
   }
 
   async function enterDemo() {
@@ -428,6 +438,7 @@ export default function App() {
           phase={connectPhase}
           detail={note}
           githubReady={githubReady}
+          githubSetup={githubSetup}
           onContinue={continueGitHub}
           onDemo={enterDemo}
           onRetry={() => setConnectPhase("ready")}

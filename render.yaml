@@ -33,7 +33,7 @@ services:
       - key: DEMO_SEED
         value: "true"
       - key: GITHUB_SCOPES
-        value: "read:user public_repo"
+        value: "read:user"
       - key: BACKBOARD_BASE_URL
         value: https://app.backboard.io/api
       - key: BACKBOARD_LLM_PROVIDER

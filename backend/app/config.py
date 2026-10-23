@@ -90,7 +90,9 @@ class Settings(BaseSettings):
     github_client_id: str | None = None
     github_client_secret: str | None = None
     github_app_slug: str | None = None
-    github_oauth_callback_url: str = "http://localhost:8000/auth/github/callback"
+    github_oauth_callback_url: str | None = None
+    # Render sets this on every web service, e.g. https://moss-garden-api.onrender.com
+    render_external_url: str | None = None
 
     backboard_api_key: str | None = None
     backboard_base_url: str = "https://app.backboard.io/api"
@@ -107,7 +109,8 @@ class Settings(BaseSettings):
     elevenlabs_voice_id: str | None = None
     elevenlabs_monthly_char_cap: int = 3000
 
-    github_scopes: str = "read:user public_repo"
+    # read:user is read-only. public_repo would also grant write access to public repositories.
+    github_scopes: str = "read:user"
     session_secret: str | None = None
     token_fernet_key: str | None = None
     sync_secret: str | None = None

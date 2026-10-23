@@ -71,4 +71,6 @@ Free Render Postgres expires 30 days after creation, has no backups, and is limi
 
 Set `BACKBOARD_API_KEY`, `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, and `ELEVENLABS_API_KEY` in the Render dashboard when those features exist. The blueprint marks them `sync: false`, so they are not stored in this file.
 
+GitHub sign-in on Render uses a GitHub OAuth app created by hand at https://github.com/settings/applications/new. Its callback is `https://<service>.onrender.com/auth/github/callback`. Leave `GITHUB_OAUTH_CALLBACK_URL` empty to use Render's `RENDER_EXTERNAL_URL`. The local `/auth/github/setup` page returns 404 in production, because it writes `backend/.env`.
+
 This milestone does not include a live deployment URL.

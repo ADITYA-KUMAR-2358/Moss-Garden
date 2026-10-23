@@ -4,8 +4,6 @@ import json
 import logging
 import secrets
 from datetime import date, datetime, timezone
-from urllib.parse import urlsplit
-
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse, Response as RawResponse
 from pydantic import BaseModel
@@ -116,15 +114,15 @@ def sync(user: User = Depends(current_user), session: Session = Depends(get_db))
 
 @router.get("/api/auth/status")
 def auth_status():
-    settings = get_settings()
-    ready = bool(settings.github_client_id and settings.github_client_secret and settings.token_fernet_key)
-    return {"github": ready}
+    return {"github": _configured(), "setup": _setup_allowed()}
 
 
 @router.get("/auth/github")
 def github_start(request: Request):
     settings = get_settings()
-    if not settings.github_client_id or not settings.github_client_secret or not settings.token_fernet_key:
+    if not _configured():
+        if "text/html" in request.headers.get("accept", ""):
+            return RedirectResponse("/?github=off")
         raise HTTPException(status_code=503, detail="GitHub OAuth is not configured")
     state = secrets.token_urlsafe(24)
     target = authorize_url(
@@ -199,14 +197,17 @@ def _browser_origin(request: Request) -> str:
     if host:
         scheme = request.headers.get("x-forwarded-proto") or request.url.scheme or "http"
         return f"{scheme}://{host}"
-    parts = urlsplit(get_settings().github_oauth_callback_url)
-    return f"{parts.scheme}://{parts.netloc}"
+    return "http://localhost:8000"
 
 
 def _callback_url(request: Request) -> str:
     settings = get_settings()
     if settings.environment == "production":
-        return settings.github_oauth_callback_url
+        if settings.github_oauth_callback_url:
+            return settings.github_oauth_callback_url
+        if settings.render_external_url:
+            return f"{settings.render_external_url.rstrip('/')}/auth/github/callback"
+        raise HTTPException(status_code=503, detail="GITHUB_OAUTH_CALLBACK_URL is not set")
     return f"{_browser_origin(request)}/auth/github/callback"
 
 
@@ -215,9 +216,16 @@ def _configured() -> bool:
     return bool(settings.github_client_id and settings.github_client_secret and settings.token_fernet_key)
 
 
+def _setup_allowed() -> bool:
+    """The one-time app setup writes backend/.env, so it only runs on a local server."""
+    return get_settings().environment != "production"
+
+
 @router.get("/auth/github/setup")
 def github_setup(request: Request):
     """Send the browser to GitHub so this person can approve a read-only app."""
+    if not _setup_allowed():
+        raise HTTPException(status_code=404, detail="Not found")
     if _configured():
         return RedirectResponse("/auth/github")
     state = secrets.token_urlsafe(24)
@@ -271,6 +279,8 @@ document.getElementById("manifest-form").submit();
 
 @router.get("/auth/github/setup/callback")
 def github_setup_callback(code: str, request: Request, state: str = ""):
+    if not _setup_allowed():
+        raise HTTPException(status_code=404, detail="Not found")
     expected = request.cookies.get(_SETUP_COOKIE)
     if not expected or state != expected:
         raise HTTPException(status_code=400, detail="GitHub setup state did not match")

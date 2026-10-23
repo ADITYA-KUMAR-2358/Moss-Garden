@@ -10,6 +10,10 @@ const COPY = {
     title: "Turn on GitHub sign-in",
     body: "Players sign in with their own GitHub accounts. This server still needs its app approved once, by the person running Moss Garden. After that, the client id stays on the server.",
   },
+  off: {
+    title: "GitHub sign-in isn't on yet",
+    body: "This garden hasn't been connected to GitHub by its owner. You can still walk through the demo garden.",
+  },
   importing: {
     title: "Gathering your history",
     body: "Reading your last 12 months of public activity. This usually takes under a minute. You can leave this page.",
@@ -24,21 +28,27 @@ const COPY = {
   },
 };
 
-export default function Connect({ phase, detail, githubReady, onContinue, onDemo, onRetry, onGarden }) {
+function readyCopy(githubReady, githubSetup) {
+  if (githubReady) return COPY.ready;
+  return githubSetup ? COPY.setup : COPY.off;
+}
+
+export default function Connect({ phase, detail, githubReady, githubSetup, onContinue, onDemo, onRetry, onGarden }) {
   const signingIn = phase === "ready" && githubReady;
-  const copy = (phase === "ready" && !githubReady ? COPY.setup : COPY[phase]) || COPY.ready;
+  const settingUp = phase === "ready" && !githubReady && githubSetup;
+  const copy = phase === "ready" ? readyCopy(githubReady, githubSetup) : COPY[phase] || COPY.ready;
   return (
     <main id="content" className="page connect-page">
       <article className="connect-card">
         <PlantMark species="clover" stage="sprout" size={96} />
         <h1>{copy.title}</h1>
         <p>{copy.body}</p>
-        {phase === "ready" ? (
+        {signingIn || settingUp ? (
           <>
-            <p className="mono scope">{signingIn ? "read:user public_repo" : "one-time server setup"}</p>
+            <p className="mono scope">{signingIn ? "read:user" : "one-time server setup"}</p>
             <p className="caption">
               {signingIn
-                ? "GitHub asks you to approve read access. Your public repositories are planted first. You can change that list in Settings."
+                ? "GitHub asks you to approve read-only access to your profile. Your public repositories are planted first. You can change that list in Settings."
                 : "This button opens GitHub so you can approve the Moss Garden app. Players who visit later only see Sign in with GitHub."}
             </p>
             <button type="button" className="primary" onClick={onContinue}>
@@ -47,6 +57,9 @@ export default function Connect({ phase, detail, githubReady, onContinue, onDemo
             </button>
             <button type="button" className="text-link" onClick={onDemo}>Explore a demo garden instead</button>
           </>
+        ) : null}
+        {phase === "ready" && !signingIn && !settingUp ? (
+          <button type="button" className="primary" onClick={onDemo}>Explore a demo garden</button>
         ) : null}
         {phase === "importing" ? (
           <div className="track" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={40} aria-label="Import progress">
@@ -63,7 +76,7 @@ export default function Connect({ phase, detail, githubReady, onContinue, onDemo
           <>
             <p className="danger" role="alert">
               <WarningCircle size={18} weight="fill" aria-hidden="true" />
-              {detail || "GitHub sign-in needs a client id, a client secret, and a token key in backend/.env."}
+              {detail || "GitHub didn't finish the sign-in. Try again in a moment."}
             </p>
             <div className="actions">
               <button type="button" className="primary" onClick={onRetry}>Try again</button>

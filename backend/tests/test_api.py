@@ -47,7 +47,7 @@ def test_github_status_is_off_until_the_app_is_configured(tmp_path, monkeypatch)
     with TestClient(app) as client:
         status = client.get("/api/auth/status")
         assert status.status_code == 200
-        assert status.json() == {"github": False}
+        assert status.json() == {"github": False, "setup": True}
         assert client.get("/auth/github").status_code == 503
         setup = client.get("/auth/github/setup")
         assert setup.status_code == 200
@@ -57,6 +57,35 @@ def test_github_status_is_off_until_the_app_is_configured(tmp_path, monkeypatch)
         assert "http://localhost:5173/auth/github/callback" in setup.text
         assert "moss_setup_state" in setup.headers.get("set-cookie", "")
         assert client.get("/auth/github/setup/callback", params={"code": "nope"}).status_code == 400
+
+
+def test_production_github_sign_in_uses_the_render_address(tmp_path, monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'render.db'}")
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.setenv("SESSION_SECRET", "test-secret")
+    monkeypatch.setenv("RENDER_EXTERNAL_URL", "https://moss-garden-api.onrender.com")
+    monkeypatch.setenv("GITHUB_OAUTH_CALLBACK_URL", "")
+    monkeypatch.setenv("GITHUB_SCOPES", "read:user")
+    monkeypatch.setenv("GITHUB_CLIENT_ID", "")
+    monkeypatch.setenv("GITHUB_CLIENT_SECRET", "")
+    monkeypatch.setenv("TOKEN_FERNET_KEY", "")
+    with TestClient(app) as client:
+        assert client.get("/api/auth/status").json() == {"github": False, "setup": False}
+        assert client.get("/auth/github/setup").status_code == 404
+        assert client.get("/auth/github/setup/callback", params={"code": "x"}).status_code == 404
+        page = client.get("/auth/github", headers={"Accept": "text/html"}, follow_redirects=False)
+        assert page.headers["location"] == "/?github=off"
+        assert client.get("/auth/github").status_code == 503
+
+        monkeypatch.setenv("GITHUB_CLIENT_ID", "live-client")
+        monkeypatch.setenv("GITHUB_CLIENT_SECRET", "live-secret")
+        monkeypatch.setenv("TOKEN_FERNET_KEY", Fernet.generate_key().decode())
+        assert client.get("/api/auth/status").json() == {"github": True, "setup": False}
+        start = client.get("/auth/github", follow_redirects=False)
+        target = start.headers["location"]
+        assert "redirect_uri=https%3A%2F%2Fmoss-garden-api.onrender.com%2Fauth%2Fgithub%2Fcallback" in target
+        assert "scope=read%3Auser" in target
+        assert "public_repo" not in target
 
 
 def test_a_player_signs_in_with_their_github_account(tmp_path, monkeypatch):
