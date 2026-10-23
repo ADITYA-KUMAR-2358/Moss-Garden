@@ -117,6 +117,26 @@ def test_a_player_signs_in_with_their_github_account(tmp_path, monkeypatch):
         assert selected == ["ada/moss"]
 
 
+def test_nightly_sync_needs_the_shared_secret(tmp_path, monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'nightly.db'}")
+    monkeypatch.setenv("DEMO_SEED", "false")
+    started = []
+    monkeypatch.setattr("app.api.routes.start_nightly", lambda: started.append(1) or len(started) == 1)
+
+    with TestClient(app) as client:
+        monkeypatch.setenv("SYNC_SECRET", "")
+        assert client.post("/api/jobs/nightly").status_code == 503
+        monkeypatch.setenv("SYNC_SECRET", "night-key")
+        assert client.post("/api/jobs/nightly").status_code == 401
+        assert client.post("/api/jobs/nightly", headers={"Authorization": "Bearer wrong"}).status_code == 401
+        assert started == []
+        first = client.post("/api/jobs/nightly", headers={"Authorization": "Bearer night-key"})
+        assert first.status_code == 202
+        assert first.json() == {"status": "started"}
+        again = client.post("/api/jobs/nightly", headers={"Authorization": "Bearer night-key"})
+        assert again.json() == {"status": "running"}
+
+
 def test_logged_out_garden_asks_for_a_session(tmp_path, monkeypatch):
     monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'logged-out.db'}")
     monkeypatch.setenv("DEMO_SEED", "false")

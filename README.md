@@ -53,9 +53,11 @@ Secrets stay in environment variables. `backend/.env.example` lists every settin
 
 ## Render
 
-`render.yaml` defines a free web service, a nightly sync, and a free Postgres database. The web service builds the root `Dockerfile`, runs `alembic upgrade head` before each deploy, and uses `/healthz` as its health check.
+`render.yaml` defines a free web service and a free Postgres database. The web service builds the root `Dockerfile`, runs `alembic upgrade head` each time the container starts, and uses `/healthz` as its health check. Free web services cannot use a pre-deploy command, so the migration is part of the start command.
 
 A free Render web service spins down after 15 minutes without an inbound request. Render's own health probe does not count as that traffic. `.github/workflows/keep-alive.yml` requests `/healthz` every 10 minutes. After the first deploy, set the GitHub repository variable `RENDER_HEALTH_URL` to `https://<your-service>.onrender.com/healthz`. GitHub can start a scheduled run late, so a free instance can still sleep until the next successful ping. A paid Render plan is what stays up without a ping. See https://render.com/docs/free.
+
+Render cron jobs have no free plan, so `.github/workflows/nightly-sync.yml` starts the nightly garden sync at 00:10 UTC. It sends `POST /api/jobs/nightly` with `Authorization: Bearer <SYNC_SECRET>`. The blueprint generates `SYNC_SECRET` on the web service. Copy that value from the Render dashboard into a GitHub repository secret named `SYNC_SECRET`. The workflow reuses `RENDER_HEALTH_URL` to find the service.
 
 Local Docker:
 

@@ -11,7 +11,8 @@ services:
     plan: free
     dockerfilePath: ./Dockerfile
     dockerContext: .
-    preDeployCommand: cd /app/backend && alembic upgrade head
+    # Free web services cannot use preDeployCommand, so migrations run before uvicorn starts.
+    dockerCommand: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"
     healthCheckPath: /healthz
     envVars:
       - key: ENVIRONMENT
@@ -56,19 +57,7 @@ services:
         sync: false
       - key: ELEVENLABS_VOICE_ID
         sync: false
-  - type: cron
-    name: moss-garden-sync
-    runtime: docker
-    schedule: "10 0 * * *"
-    dockerfilePath: ./Dockerfile
-    dockerContext: .
-    dockerCommand: python -m app.jobs.nightly
-    envVars:
-      - key: DATABASE_URL
-        fromDatabase:
-          name: moss-garden-db
-          property: connectionString
-      - key: AI_ENABLED
-        value: "false"
-      - key: TOKEN_FERNET_KEY
-        sync: false
+      # Render cron jobs have no free plan. .github/workflows/nightly-sync.yml
+      # calls POST /api/jobs/nightly with this value instead.
+      - key: SYNC_SECRET
+        generateValue: true

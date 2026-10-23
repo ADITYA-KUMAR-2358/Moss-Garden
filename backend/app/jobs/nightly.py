@@ -1,6 +1,7 @@
 """Scheduled sync. Running it twice does not award the same commit twice."""
 
 import logging
+import threading
 from datetime import datetime, timezone
 
 from sqlalchemy import select
@@ -12,6 +13,24 @@ from app.security import decrypt_token
 from app.services.garden import sync_repositories
 
 logger = logging.getLogger(__name__)
+_running = threading.Lock()
+
+
+def start_nightly() -> bool:
+    """Run the sync in a background thread. Returns False if one is already running."""
+    if not _running.acquire(blocking=False):
+        return False
+
+    def work() -> None:
+        try:
+            run_nightly()
+        except Exception:
+            logger.exception("nightly sync failed")
+        finally:
+            _running.release()
+
+    threading.Thread(target=work, name="nightly-sync", daemon=True).start()
+    return True
 
 
 def run_nightly() -> None:
@@ -28,3 +47,7 @@ def run_nightly() -> None:
                 session.rollback()
     finally:
         session.close()
+
+
+if __name__ == "__main__":
+    run_nightly()

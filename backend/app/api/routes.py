@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.db import get_db, get_engine
 from app.integrations.github import GitHubClient, GitHubError, authorize_url, convert_app_manifest, exchange_code
+from app.jobs.nightly import start_nightly
 from app.local_env import upsert_env
 from app.models import Repository, User
 from app.security import decrypt_token, encrypt_token, read_user_id, sign_user_id
@@ -296,6 +297,21 @@ def github_setup_callback(code: str, request: Request, state: str = ""):
     response = RedirectResponse(target)
     response.delete_cookie(_SETUP_COOKIE, path="/")
     return response
+
+
+@router.post("/api/jobs/nightly", status_code=202)
+def nightly_sync(request: Request):
+    expected = get_settings().sync_secret
+    if not expected:
+        raise HTTPException(status_code=503, detail="SYNC_SECRET is not set")
+    given = request.headers.get("authorization", "").removeprefix("Bearer ").strip()
+    if not secrets.compare_digest(given.encode(), expected.encode()):
+        raise HTTPException(status_code=401, detail="Sync secret did not match")
+    if not database_ready():
+        raise HTTPException(status_code=503, detail="Database is not configured")
+    if not start_nightly():
+        return {"status": "running"}
+    return {"status": "started"}
 
 
 @router.post("/api/logout")

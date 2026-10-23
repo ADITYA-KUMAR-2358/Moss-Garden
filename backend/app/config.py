@@ -110,6 +110,7 @@ class Settings(BaseSettings):
     github_scopes: str = "read:user public_repo"
     session_secret: str | None = None
     token_fernet_key: str | None = None
+    sync_secret: str | None = None
     demo_seed: bool = True
 
     @field_validator("database_url", mode="before")
