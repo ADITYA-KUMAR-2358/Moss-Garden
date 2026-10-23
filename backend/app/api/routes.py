@@ -4,6 +4,7 @@ import json
 import logging
 import secrets
 from datetime import date, datetime, timezone
+from urllib.parse import urlsplit
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse, Response as RawResponse
 from pydantic import BaseModel
@@ -200,13 +201,24 @@ def _browser_origin(request: Request) -> str:
     return "http://localhost:8000"
 
 
+def _is_local_url(url: str) -> bool:
+    host = (urlsplit(url).hostname or "").lower()
+    return host in {"localhost", "127.0.0.1", "0.0.0.0", "::1"}
+
+
 def _callback_url(request: Request) -> str:
     settings = get_settings()
     if settings.environment == "production":
-        if settings.github_oauth_callback_url:
-            return settings.github_oauth_callback_url
+        configured = (settings.github_oauth_callback_url or "").strip()
+        if configured and not _is_local_url(configured):
+            return configured
+        if configured:
+            logger.warning("Ignoring local GITHUB_OAUTH_CALLBACK_URL in production")
         if settings.render_external_url:
             return f"{settings.render_external_url.rstrip('/')}/auth/github/callback"
+        origin = _browser_origin(request)
+        if not _is_local_url(origin):
+            return f"{origin}/auth/github/callback"
         raise HTTPException(status_code=503, detail="GITHUB_OAUTH_CALLBACK_URL is not set")
     return f"{_browser_origin(request)}/auth/github/callback"
 

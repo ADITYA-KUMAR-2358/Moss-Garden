@@ -161,6 +161,8 @@ def garden_client(tmp_path, monkeypatch):
     monkeypatch.setenv("DEMO_SEED", "true")
     monkeypatch.setenv("AI_ENABLED", "false")
     monkeypatch.setenv("AUDIO_ENABLED", "false")
+    monkeypatch.setenv("GITHUB_CLIENT_ID", "")
+    monkeypatch.setenv("GITHUB_CLIENT_SECRET", "")
     with TestClient(app) as client:
         yield client
 

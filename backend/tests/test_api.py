@@ -87,6 +87,19 @@ def test_production_github_sign_in_uses_the_render_address(tmp_path, monkeypatch
         assert "scope=read%3Auser" in target
         assert "public_repo" not in target
 
+        monkeypatch.setenv("GITHUB_OAUTH_CALLBACK_URL", "http://localhost:5173/auth/github/callback")
+        target = client.get("/auth/github", follow_redirects=False).headers["location"]
+        assert "localhost" not in target
+        assert "redirect_uri=https%3A%2F%2Fmoss-garden-api.onrender.com%2Fauth%2Fgithub%2Fcallback" in target
+
+        monkeypatch.setenv("RENDER_EXTERNAL_URL", "")
+        target = client.get(
+            "/auth/github",
+            headers={"host": "moss-garden-api.onrender.com", "x-forwarded-proto": "https"},
+            follow_redirects=False,
+        ).headers["location"]
+        assert "redirect_uri=https%3A%2F%2Fmoss-garden-api.onrender.com%2Fauth%2Fgithub%2Fcallback" in target
+
 
 def test_a_player_signs_in_with_their_github_account(tmp_path, monkeypatch):
     monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'player.db'}")
