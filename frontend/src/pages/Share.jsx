@@ -82,7 +82,7 @@ export default function Share({ garden }) {
           <p className="tagline">Small commits. Slow growth. A garden that remembers.</p>
         </div>
         <div className="share-garden">
-          <GardenScene title={`${garden.display_name} garden`} />
+          <GardenScene plants={garden.plants} title={`${garden.display_name} garden`} />
         </div>
       </article>
       <p id="share-summary" className="visually-hidden">{garden.share.text}</p>

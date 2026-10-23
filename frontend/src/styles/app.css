@@ -825,20 +825,18 @@ h1 {
 }
 
 .garden-sheet {
+  position: relative;
   width: 100%;
-  aspect-ratio: 840 / 540;
+  aspect-ratio: 836 / 572;
+  container-type: inline-size;
   overflow: hidden;
-}
-.garden-sheet img {
-  width: 100%;
-  height: auto;
-  display: block;
-  margin-top: -73.8%;
 }
 .garden-board {
   position: absolute;
   left: 0;
   top: 0;
+  width: 836px;
+  height: 572px;
   transform-origin: top left;
   transform: scale(calc(100cqw / 836px));
 }
