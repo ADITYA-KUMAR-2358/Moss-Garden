@@ -24,4 +24,5 @@ WORKDIR /app/backend
 EXPOSE 8000
 
 # Render sets PORT. Local Docker uses 8000 when PORT is unset.
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# Migrations run at start because free Render web services cannot use a pre-deploy command.
+CMD ["sh", "-c", "set -e; if [ -n \"$DATABASE_URL\" ]; then alembic upgrade head; fi; exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

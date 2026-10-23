@@ -11,8 +11,7 @@ services:
     plan: free
     dockerfilePath: ./Dockerfile
     dockerContext: .
-    # Free web services cannot use preDeployCommand, so migrations run before uvicorn starts.
-    dockerCommand: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"
+    # Free web services cannot use preDeployCommand. The Dockerfile CMD runs migrations, then uvicorn.
     healthCheckPath: /healthz
     envVars:
       - key: ENVIRONMENT
