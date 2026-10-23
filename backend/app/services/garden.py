@@ -293,8 +293,8 @@ def store_candidates(session: Session, user: User, repository: Repository, candi
     return added
 
 
-def start_from_github(session: Session, user: User, client: GitHubClient, today: date | None = None) -> dict:
-    """List repositories after sign-in and grow the first one if nothing is chosen yet."""
+def prepare_from_github(session: Session, user: User, client: GitHubClient) -> dict:
+    """List repositories after sign-in without importing historical commits."""
     try:
         remote = client.list_repos()
     except GitHubError as error:
@@ -313,6 +313,14 @@ def start_from_github(session: Session, user: User, client: GitHubClient, today:
             if row.full_name in names:
                 row.selected = True
         session.commit()
+    return {"imported": 0, "status": "ready"}
+
+
+def start_from_github(session: Session, user: User, client: GitHubClient, today: date | None = None) -> dict:
+    """List repositories after sign-in and sync existing accounts."""
+    prepared = prepare_from_github(session, user, client)
+    if prepared["status"] == "error":
+        return prepared
     return sync_repositories(session, user, client, today)
 
 

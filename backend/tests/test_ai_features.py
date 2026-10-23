@@ -56,11 +56,13 @@ def player(tmp_path, monkeypatch):
     monkeypatch.setenv("BACKBOARD_MODEL_NAME", "google/gemma-4-26b-a4b-it")
     monkeypatch.setattr("app.api.routes.exchange_code", lambda **_kwargs: "player-token")
     monkeypatch.setattr("app.api.routes.GitHubClient", PlayerGitHub)
+    monkeypatch.setattr("app.api.routes._last_sync", {})
     monkeypatch.setattr("app.integrations.backboard._default_transport", fake_model)
     with TestClient(app) as client:
         client.get("/auth/github", follow_redirects=False)
         state = client.cookies.get("moss_oauth_state")
         client.get("/auth/github/callback", params={"code": "c", "state": state}, follow_redirects=False)
+        assert client.post("/api/sync").status_code == 200
         yield client
 
 

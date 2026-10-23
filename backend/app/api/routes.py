@@ -26,6 +26,7 @@ from app.services.garden import (
     export_garden,
     journal_audio_for,
     remember_projection,
+    prepare_from_github,
     start_from_github,
     sync_repositories,
     tend_with_ai,
@@ -226,6 +227,7 @@ def github_callback(code: str, state: str, request: Request, session: Session = 
     login = str(profile["login"])[:80]
     display_name = str(profile.get("name") or login)[:120]
     user = session.scalar(select(User).where(User.github_id == github_id))
+    is_new_user = user is None
     if user is None:
         user = User(
             github_id=github_id,
@@ -244,7 +246,10 @@ def github_callback(code: str, state: str, request: Request, session: Session = 
         session.flush()
     session.commit()
     try:
-        start_from_github(session, user, GitHubClient(token))
+        if is_new_user:
+            prepare_from_github(session, user, GitHubClient(token))
+        else:
+            start_from_github(session, user, GitHubClient(token))
     except Exception:
         logger.exception("github garden start failed")
     response = RedirectResponse("/#garden")

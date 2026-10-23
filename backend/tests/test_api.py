@@ -158,9 +158,17 @@ def test_a_player_signs_in_with_their_github_account(tmp_path, monkeypatch):
         body = garden.json()
         assert body["login"] == "ada"
         assert body["demo"] is False
-        assert body["xp"] > 0
+        assert body["xp"] == 0
+        assert body["fresh"] is True
+        assert body["plants"] == []
+        assert body["profile"]["commits"] == 0
         assert body["profile"]["avatar_url"] == "https://github.com/ada.png?size=160"
         assert body["profile"]["github_url"] == "https://github.com/ada"
+        grown = client.post("/api/sync")
+        assert grown.status_code == 200
+        body = client.get("/api/garden").json()
+        assert body["xp"] > 0
+        assert body["plants"]
         assert body["profile"]["commits"] == 1
         assert body["profile"]["repos"] == 1
         repos = client.get("/api/repos").json()["repos"]
