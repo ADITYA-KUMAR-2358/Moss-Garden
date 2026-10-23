@@ -1,0 +1,378 @@
+:root {
+  --canopy: #10241c;
+  --leaf: #e7f3ea;
+  --moss: #1f7a4d;
+  --amber: #e0a23a;
+  --ink: #10241c;
+  --mist: #8fb39a;
+  --panel: #17352a;
+  --line: rgb(143 179 154 / 0.35);
+  --radius: 16px;
+  color-scheme: dark;
+  font-family: "Outfit", "Segoe UI", sans-serif;
+  background: var(--canopy);
+  color: var(--leaf);
+}
+
+html[data-theme="light"] {
+  --canopy: #e7f3ea;
+  --leaf: #10241c;
+  --panel: #f7fbf8;
+  --mist: #2f6a49;
+  --line: rgb(16 36 28 / 0.16);
+  color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background: var(--canopy);
+  color: var(--leaf);
+}
+
+a { color: inherit; }
+
+.skip {
+  position: absolute;
+  left: 1rem;
+  top: -4rem;
+  background: var(--amber);
+  color: var(--ink);
+  padding: 0.5rem 0.8rem;
+  border-radius: var(--radius);
+  z-index: 5;
+}
+
+.skip:focus { top: 1rem; }
+
+.nav {
+  height: 68px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0 1.5rem;
+  max-width: 1120px;
+  margin: 0 auto;
+}
+
+.wordmark {
+  text-decoration: none;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  font-size: 1.15rem;
+}
+
+.nav-actions, .actions {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: nowrap;
+}
+
+button, .primary, .quiet {
+  font: inherit;
+  border-radius: var(--radius);
+  min-height: 44px;
+  padding: 0.55rem 1rem;
+  border: 1px solid transparent;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  white-space: nowrap;
+}
+
+.primary, button.primary {
+  background: var(--amber);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.quiet, button.quiet {
+  background: transparent;
+  color: var(--leaf);
+  border-color: var(--line);
+}
+
+button:active, .primary:active { transform: scale(0.98); }
+
+button:focus-visible, a:focus-visible {
+  outline: 3px solid var(--amber);
+  outline-offset: 3px;
+}
+
+button[aria-pressed="true"] {
+  background: var(--moss);
+  color: #e7f3ea;
+}
+
+.page {
+  width: min(1120px, calc(100% - 2rem));
+  margin: 0 auto 3rem;
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  gap: 1.5rem;
+  align-items: stretch;
+  min-height: calc(100dvh - 68px);
+  padding: 1.5rem 0 2rem;
+}
+
+.hero-copy {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  max-width: 38rem;
+}
+
+h1 {
+  margin: 0;
+  font-size: clamp(2.6rem, 5vw, 4.4rem);
+  line-height: 0.96;
+  letter-spacing: -0.045em;
+  font-weight: 700;
+  max-width: 11ch;
+}
+
+.lede {
+  max-width: 36ch;
+  font-size: 1.15rem;
+  line-height: 1.5;
+  margin: 1rem 0 1.4rem;
+}
+
+.note {
+  min-height: 1.4em;
+  color: var(--mist);
+}
+
+.plot, .scene {
+  position: relative;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: #0c1c16;
+}
+
+.plot { min-height: 460px; }
+
+.plot .bed {
+  height: 58%;
+  padding: 0 14% 1.6rem;
+}
+
+.sky, .hill, .bed { position: absolute; inset: auto 0 0; }
+
+.sky {
+  inset: 0;
+  background:
+    radial-gradient(circle at 18% 12%, rgb(143 179 154 / 0.38), transparent 32%),
+    linear-gradient(#1a3d30, #0c1c16 72%);
+}
+
+.hill-back {
+  height: 52%;
+  background: #1c4a38;
+  border-radius: 50% 50% 0 0 / 28% 28% 0 0;
+}
+
+.hill-front {
+  height: 38%;
+  background: #245c44;
+  border-radius: 58% 42% 0 0 / 36% 24% 0 0;
+}
+
+.bed {
+  height: 42%;
+  background: linear-gradient(#2a2418, #1a2a22 42%, #122018);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 1.4rem;
+  padding: 0 8% 1.4rem;
+}
+
+.plant {
+  width: 84px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transform-origin: bottom center;
+  animation: sway 7s ease-in-out infinite;
+  position: relative;
+}
+
+.crown {
+  width: 64px;
+  height: 64px;
+  border-radius: 50% 50% 42% 42%;
+  background: var(--moss);
+}
+
+.plant.fern .crown { border-radius: 10% 50% 10% 50%; transform: rotate(-8deg); }
+.plant.clover .crown { border-radius: 50%; width: 22px; height: 22px; box-shadow: 14px 0 0 var(--moss), -14px 0 0 var(--moss); background: transparent; }
+.plant.thyme .crown { height: 28px; border-radius: 40px; }
+.plant.camellia .crown { background: #7dcea0; }
+.plant.maple .crown { clip-path: polygon(50% 0, 100% 38%, 82% 100%, 18% 100%, 0 38%); border-radius: 0; }
+.plant.sprout .crown { transform: scale(0.45); }
+.plant.young .crown { transform: scale(0.7); }
+.plant.mature .crown { transform: scale(0.9); }
+.plant.bloom .crown { transform: scale(1); }
+.plant.fern.sprout .crown, .plant.fern.young .crown, .plant.fern.mature .crown, .plant.fern.bloom .crown { transform: rotate(-8deg) scale(0.7); }
+.plant.fern.bloom .crown { transform: rotate(-8deg) scale(1); }
+
+.stem {
+  width: 4px;
+  height: 48px;
+  background: #6f8f4e;
+}
+
+.plant figcaption {
+  margin-top: 0.35rem;
+  font-size: 0.85rem;
+  color: #e7f3ea;
+}
+
+.story {
+  display: grid;
+  grid-template-columns: 0.8fr 1.2fr;
+  gap: 2rem;
+  padding: 3.5rem 0;
+  border-top: 1px solid var(--line);
+}
+
+.story h2, .close h2 {
+  margin: 0 0 0.6rem;
+  font-size: clamp(1.8rem, 3vw, 2.6rem);
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+}
+
+.steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 1.25rem;
+}
+
+.steps h3 {
+  margin: 0 0 0.2rem;
+  font-size: 1.15rem;
+}
+
+.steps p, .story > p, .close p, .rail p {
+  margin: 0;
+  line-height: 1.5;
+  max-width: 62ch;
+}
+
+.close {
+  padding: 2.5rem 0 1rem;
+  border-top: 1px solid var(--line);
+}
+
+.site-footer {
+  width: min(1120px, calc(100% - 2rem));
+  margin: 0 auto;
+  padding: 2rem 0 2.5rem;
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr;
+  gap: 1.5rem;
+  border-top: 1px solid var(--line);
+}
+
+.site-footer h2 {
+  margin: 0 0 0.4rem;
+  font-size: 1rem;
+}
+
+.site-footer p, .site-footer a {
+  margin: 0.2rem 0;
+  line-height: 1.5;
+}
+
+.site-footer a { display: inline-block; }
+
+.garden-layout {
+  display: grid;
+  grid-template-columns: 1.4fr 0.8fr;
+  gap: 1.25rem;
+  padding-top: 0.5rem;
+}
+
+.scene {
+  position: relative;
+  min-height: min(720px, calc(100dvh - 6rem));
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: #0c1c16;
+}
+
+html[data-theme="light"] .sky {
+  background:
+    radial-gradient(circle at 18% 12%, rgb(255 244 214 / 0.55), transparent 30%),
+    linear-gradient(#8fbfa4, #1d4a38 78%);
+}
+
+.rail {
+  background: var(--panel);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+  color: var(--leaf);
+}
+
+.rail h2 {
+  margin: 1.3rem 0 0.3rem;
+  font-size: 1.05rem;
+}
+
+.badges {
+  padding: 0;
+  margin: 0.4rem 0 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.badges li {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.35rem 0.6rem;
+}
+
+.repo-list { display: grid; gap: 0.45rem; margin: 0.4rem 0 0.8rem; }
+
+.repo-list label { display: flex; gap: 0.5rem; align-items: center; }
+
+.frost .sky { background: linear-gradient(#24515f, #0c1c16 70%); }
+.rain .sky { background: linear-gradient(#1d3a48, #0c1c16 72%); }
+.sun .sky { background: linear-gradient(#3d6a3a, #0c1c16 70%); }
+.leaf .sky { background: linear-gradient(#3a4630, #0c1c16 72%); }
+.drought .hill-front { background: #3d4a32; }
+.drought .bed { filter: saturate(0.7); }
+
+@media (max-width: 800px) {
+  .nav { height: auto; min-height: 68px; padding: 0.75rem 1rem; }
+  .nav-actions { flex-wrap: wrap; justify-content: flex-end; }
+  .hero, .story, .garden-layout, .site-footer { grid-template-columns: 1fr; }
+  .hero { min-height: auto; padding-top: 1rem; }
+  .scene { min-height: 70dvh; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .plant { animation: none; }
+  button:active, .primary:active { transform: none; }
+}
+
+@keyframes sway {
+  0%, 100% { transform: rotate(-1.2deg); }
+  50% { transform: rotate(1.2deg); }
+}

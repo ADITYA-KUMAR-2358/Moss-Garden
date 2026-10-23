@@ -1,0 +1,7 @@
+fastapi==0.156.6
+uvicorn==0.54.0
+sqlalchemy==2.0.55
+psycopg[binary]==3.3.6
+alembic==1.20.0
+pydantic-settings==2.16.1
+cryptography==46.0.5

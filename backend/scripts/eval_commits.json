@@ -1,0 +1,8 @@
+[
+  {"message": "Add a regression test for duplicate commits", "expect_high": true},
+  {"message": "Fix the empty state", "expect_high": true},
+  {"message": "Update the readme", "expect_high": true},
+  {"message": "Rename the helper for clarity", "expect_high": false},
+  {"message": "wip", "expect_high": false},
+  {"message": "x", "expect_high": false}
+]

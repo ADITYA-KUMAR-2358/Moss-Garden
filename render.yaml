@@ -1,0 +1,74 @@
+databases:
+  - name: moss-garden-db
+    plan: free
+    databaseName: moss_garden
+    user: moss
+
+services:
+  - type: web
+    name: moss-garden-api
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    preDeployCommand: cd /app/backend && alembic upgrade head
+    healthCheckPath: /healthz
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: moss-garden-db
+          property: connectionString
+      - key: AI_ENABLED
+        value: "false"
+      - key: AI_DAILY_REQUEST_BUDGET
+        value: "0"
+      - key: AI_INCLUDE_COMMIT_MESSAGES
+        value: "false"
+      - key: AUDIO_ENABLED
+        value: "false"
+      - key: JOURNAL_NARRATION_ENABLED
+        value: "false"
+      - key: DEMO_SEED
+        value: "true"
+      - key: GITHUB_SCOPES
+        value: "read:user public_repo"
+      - key: BACKBOARD_BASE_URL
+        value: https://app.backboard.io/api
+      - key: BACKBOARD_LLM_PROVIDER
+        value: openrouter
+      - key: BACKBOARD_MODEL_NAME
+        value: google/gemma-4-26b-a4b-it
+      - key: BACKBOARD_API_KEY
+        sync: false
+      - key: GITHUB_CLIENT_ID
+        sync: false
+      - key: GITHUB_CLIENT_SECRET
+        sync: false
+      - key: GITHUB_OAUTH_CALLBACK_URL
+        sync: false
+      - key: SESSION_SECRET
+        sync: false
+      - key: TOKEN_FERNET_KEY
+        sync: false
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: ELEVENLABS_VOICE_ID
+        sync: false
+  - type: cron
+    name: moss-garden-sync
+    runtime: docker
+    schedule: "10 0 * * *"
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    dockerCommand: python -m app.jobs.nightly
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: moss-garden-db
+          property: connectionString
+      - key: AI_ENABLED
+        value: "false"
+      - key: TOKEN_FERNET_KEY
+        sync: false

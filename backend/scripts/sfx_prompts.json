@@ -1,0 +1,93 @@
+[
+  {
+    "file": "plant-brush.mp3",
+    "text": "Short video game UI hover. A tiny leaf rustle and one soft wooden tick, close and gentle. No music, no voice.",
+    "duration_seconds": 0.5,
+    "prompt_influence": 0.8,
+    "loop": false
+  },
+  {
+    "file": "sprout.mp3",
+    "text": "Casual video game plant-grow effect. A soft pop, then a small rising sparkle, warm and satisfying. No voice, no music bed.",
+    "duration_seconds": 1.2,
+    "prompt_influence": 0.8,
+    "loop": false
+  },
+  {
+    "file": "level-up.mp3",
+    "text": "Cozy video game level-up sting. Four clear ascending marimba notes, then a soft chime tail. Rewarding, warm, not loud. No drums, no voice.",
+    "duration_seconds": 2.5,
+    "prompt_influence": 0.8,
+    "loop": false
+  },
+  {
+    "file": "badge.mp3",
+    "text": "Video game achievement unlock. A bright warm bell arpeggio of three notes and a short sparkle. Celebratory, gentle, clearly a badge reward. No voice.",
+    "duration_seconds": 1.8,
+    "prompt_influence": 0.85,
+    "loop": false
+  },
+  {
+    "file": "xp-drop.mp3",
+    "text": "Video game XP pickup. One soft coin blip and a tiny water drop, very short, light, and pleasant. No music.",
+    "duration_seconds": 0.5,
+    "prompt_influence": 0.85,
+    "loop": false
+  },
+  {
+    "file": "drought.mp3",
+    "text": "Short game environment cue. Dry soft wind over soil, low and brief, calm, not scary. No music, no voice.",
+    "duration_seconds": 2.0,
+    "prompt_influence": 0.75,
+    "loop": false
+  },
+  {
+    "file": "comeback.mp3",
+    "text": "Short video game welcome-back sting. A gentle harp note, one quiet bird, and a soft chime. Hopeful and warm. No voice.",
+    "duration_seconds": 2.5,
+    "prompt_influence": 0.8,
+    "loop": false
+  },
+  {
+    "file": "card-saved.mp3",
+    "text": "Video game menu confirm. A soft paper flick, then a small bright UI chime. Clear and short. No voice.",
+    "duration_seconds": 1.0,
+    "prompt_influence": 0.85,
+    "loop": false
+  },
+  {
+    "file": "bg-music.mp3",
+    "text": "Soft cozy video game background music for a quiet garden. Slow felt piano and a light music box, sparse and peaceful. No drums, no vocals, low energy, seamless loop.",
+    "duration_seconds": 30,
+    "prompt_influence": 0.55,
+    "loop": true
+  },
+  {
+    "file": "ambient-spring.mp3",
+    "text": "Seamless loop of gentle garden air, light breeze and distant quiet birds. Ambience only, no melody, very quiet.",
+    "duration_seconds": 20,
+    "prompt_influence": 0.6,
+    "loop": true
+  },
+  {
+    "file": "ambient-autumn.mp3",
+    "text": "Seamless loop of soft dry leaves in a light wind, low and calm. Ambience only, no melody.",
+    "duration_seconds": 20,
+    "prompt_influence": 0.6,
+    "loop": true
+  },
+  {
+    "file": "ambient-winter.mp3",
+    "text": "Seamless loop of still cold air, faint distant wind, and sparse tiny chimes. Ambience only, very quiet.",
+    "duration_seconds": 20,
+    "prompt_influence": 0.6,
+    "loop": true
+  },
+  {
+    "file": "rain.mp3",
+    "text": "Seamless loop of light rain on leaves, soft and steady. Ambience only, no thunder, no melody.",
+    "duration_seconds": 20,
+    "prompt_influence": 0.7,
+    "loop": true
+  }
+]

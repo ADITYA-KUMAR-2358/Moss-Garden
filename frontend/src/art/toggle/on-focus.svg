@@ -1,0 +1,7 @@
+<svg preserveAspectRatio="none" overflow="visible" style="display: block;" width="40" height="24" viewBox="0 0 40 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+<g id="Track">
+<path d="M28 1C34.0751 1 39 5.92487 39 12C39 18.0751 34.0751 23 28 23H12C5.92487 23 1 18.0751 1 12C1 5.92487 5.92487 1 12 1H28Z" fill="#34483A"/>
+<path d="M28 1C34.0751 1 39 5.92487 39 12C39 18.0751 34.0751 23 28 23H12C5.92487 23 1 18.0751 1 12C1 5.92487 5.92487 1 12 1H28Z" stroke="#202B24" stroke-width="2"/>
+<path id="Knob" d="M34.5 12C34.5 15.5899 31.5899 18.5 28 18.5C24.4101 18.5 21.5 15.5899 21.5 12C21.5 8.41015 24.4101 5.5 28 5.5C31.5899 5.5 34.5 8.41015 34.5 12Z" fill="#F4F0E5" stroke="#888A7F"/>
+</g>
+</svg>
