@@ -1159,6 +1159,9 @@ h1 {
 .highlights div { background: var(--surface); border-radius: var(--radius-md); padding: 12px; }
 .highlights dt { font-size: 12px; color: var(--text-muted); }
 .highlights dd { margin: 4px 0 0; font-family: var(--font-display); font-size: 28px; color: var(--text-strong); }
+.journal-listen { display: grid; justify-items: start; gap: 8px; }
+.journal-listen .secondary { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; }
+.journal-listen .caption { margin: 0; }
 
 .settings h2 { margin: 28px 0 8px; }
 .segmented { display: flex; gap: 0; width: fit-content; border: 1px solid var(--border-control); border-radius: var(--radius-md); overflow: hidden; }

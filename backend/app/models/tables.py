@@ -128,6 +128,7 @@ class JournalAudio(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
     week_start: Mapped[date] = mapped_column(Date)
     voice_id: Mapped[str] = mapped_column(String(80))
+    text_sha: Mapped[str | None] = mapped_column(String(64))
     audio: Mapped[bytes] = mapped_column(LargeBinary)
 
 

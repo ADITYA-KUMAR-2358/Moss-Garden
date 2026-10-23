@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { CaretDown, CaretUp, Check, LockSimple, Play, SpeakerHigh, SpeakerSlash, Stop, X } from "@phosphor-icons/react";
-import { useReadAloud } from "../speech.js";
+import { useNarration } from "../speech.js";
 import HeroGarden from "./HeroGarden.jsx";
 import Toggle from "./Toggle.jsx";
 import sprout from "../art/marketing/sprout.png";
@@ -136,7 +136,10 @@ function aiControl({ ai, hasGarden, busy, onAi, onGitHub }) {
 
 export default function Marketing({ onDemo, onStart, startLabel, startHref, hasGarden, note, ai, onAi, aiBusy, soundOn, onSound }) {
   const [openQuestion, setOpenQuestion] = useState(0);
-  const reader = useReadAloud(["The week the moss settled.", ...SAMPLE_JOURNAL].join(" "));
+  const reader = useNarration({
+    src: "/audio/journal-sample.mp3",
+    text: ["The week the moss settled.", ...SAMPLE_JOURNAL].join(" "),
+  });
   const aiUi = aiControl({ ai, hasGarden, busy: aiBusy, onAi, onGitHub: onStart });
 
   return (
@@ -266,18 +269,21 @@ export default function Marketing({ onDemo, onStart, startLabel, startHref, hasG
               type="button"
               className="m-listen"
               aria-pressed={reader.speaking}
+              aria-busy={reader.loading}
               disabled={!reader.supported}
               onClick={reader.toggle}
             >
-              {reader.speaking
-                ? <Stop size={14} weight="fill" aria-hidden="true" />
-                : <Play size={14} weight="fill" aria-hidden="true" />}
-              {reader.speaking ? "Stop" : "Listen"}
+              {reader.state === "idle"
+                ? <Play size={14} weight="fill" aria-hidden="true" />
+                : <Stop size={14} weight="fill" aria-hidden="true" />}
+              {reader.loading ? "Loading" : reader.speaking ? "Stop" : "Listen"}
             </button>
-            <p>
-              {reader.supported
-                ? "Read aloud by your browser's voice, only when you press play. Transcript is the text above."
-                : "This browser cannot read aloud. The text above is the full entry."}
+            <p role="status">
+              {!reader.supported
+                ? "This browser cannot read aloud. The text above is the full entry."
+                : reader.voice === "elevenlabs"
+                  ? "Narrated by an ElevenLabs voice, only when you press play. Transcript is the text above."
+                  : "Read aloud by your browser's voice, only when you press play. Transcript is the text above."}
             </p>
           </div>
         </article>

@@ -107,6 +107,7 @@ class Settings(BaseSettings):
     journal_narration_enabled: bool = False
     elevenlabs_api_key: str | None = None
     elevenlabs_voice_id: str | None = None
+    elevenlabs_model_id: str = "eleven_v4"
     elevenlabs_monthly_char_cap: int = 3000
 
     # read:user is read-only. public_repo would also grant write access to public repositories.

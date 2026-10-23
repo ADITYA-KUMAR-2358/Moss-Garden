@@ -1,5 +1,6 @@
 """Rebuild and store garden state from commits. Replay is safe."""
 
+import hashlib
 import logging
 from datetime import date, datetime, timedelta, timezone
 from urllib.parse import quote
@@ -147,7 +148,7 @@ def _view(session: Session, user: User, today: date, xp: int, projection) -> dic
     journal = weekly_journal(active_days=active, xp=week_xp, blooms=blooms, quiet_days=max(quiet, 0))
     monday = _week_start(today)
     journal, journal_source = _store_journal(session, user, today, monday, journal)
-    has_audio = _narrate_week(session, user, monday, journal)
+    has_audio = _narration_ready(session, user, monday, journal)
     species_labels = {item["id"]: item["label"] for item in PLANT_SPECIES}
     level = projection.level
     next_xp = None
@@ -533,56 +534,73 @@ def _characters_this_month(session: Session, today: date) -> int:
     return int(total or 0)
 
 
-def _narrate_week(session: Session, user: User, monday: date, body: str) -> bool:
-    existing = session.scalar(
-        select(JournalAudio).where(JournalAudio.user_id == user.id, JournalAudio.week_start == monday)
-    )
-    if existing is not None:
-        return True
+def narration_configured() -> bool:
     settings = get_settings()
-    if not settings.audio_enabled:
-        return False
-    if not settings.elevenlabs_api_key or not settings.elevenlabs_voice_id:
-        return False
-    cleaned = " ".join(body.split())
-    if not cleaned:
-        return False
-    spent = _characters_this_month(session, datetime.now(timezone.utc).date())
-    if spent + len(cleaned) > settings.elevenlabs_monthly_char_cap:
-        return False
-    try:
-        from app.integrations.elevenlabs import narrate
+    return bool(settings.audio_enabled and settings.elevenlabs_api_key and settings.elevenlabs_voice_id)
 
-        audio = narrate(settings.elevenlabs_api_key, settings.elevenlabs_voice_id, cleaned)
-    except Exception:
-        logger.exception("narration skipped")
+
+def _narration_text(body: str) -> str:
+    return " ".join(body.split())
+
+
+def _narration_sha(text: str) -> str:
+    settings = get_settings()
+    material = f"{settings.elevenlabs_voice_id}|{settings.elevenlabs_model_id}|{text}"
+    return hashlib.sha256(material.encode()).hexdigest()
+
+
+def _cached_audio(session: Session, user: User, week_start: date) -> JournalAudio | None:
+    return session.scalar(
+        select(JournalAudio).where(JournalAudio.user_id == user.id, JournalAudio.week_start == week_start)
+    )
+
+
+def _narration_ready(session: Session, user: User, monday: date, body: str) -> bool:
+    """True when Listen can play an ElevenLabs voice. Nothing is generated until someone presses it."""
+    text = _narration_text(body)
+    if not text or not narration_configured():
         return False
-    session.add(
-        JournalAudio(
-            user_id=user.id,
-            week_start=monday,
-            voice_id=settings.elevenlabs_voice_id,
-            audio=audio,
-        )
-    )
-    session.add(
-        UsageLog(
-            purpose="tts",
-            characters=len(cleaned),
-            created_at=datetime.now(timezone.utc),
-        )
-    )
-    session.flush()
-    return True
+    row = _cached_audio(session, user, monday)
+    if row is not None and row.text_sha == _narration_sha(text):
+        return True
+    spent = _characters_this_month(session, datetime.now(timezone.utc).date())
+    return spent + len(text) <= get_settings().elevenlabs_monthly_char_cap
 
 
 def journal_audio_for(session: Session, user: User, week_start: date) -> bytes | None:
-    row = session.scalar(
-        select(JournalAudio).where(JournalAudio.user_id == user.id, JournalAudio.week_start == week_start)
-    )
-    if row is None:
+    """Narrate the stored journal for that week, reusing audio while its text, voice and model match."""
+    if not narration_configured():
         return None
-    return row.audio
+    journal = session.scalar(
+        select(Journal).where(Journal.user_id == user.id, Journal.week_start == week_start)
+    )
+    text = _narration_text(journal.body) if journal is not None else ""
+    if not text:
+        return None
+    sha = _narration_sha(text)
+    row = _cached_audio(session, user, week_start)
+    if row is not None and row.text_sha == sha:
+        return row.audio
+    settings = get_settings()
+    spent = _characters_this_month(session, datetime.now(timezone.utc).date())
+    if spent + len(text) > settings.elevenlabs_monthly_char_cap:
+        return None
+    try:
+        from app.integrations.elevenlabs import narrate
+
+        audio = narrate(settings.elevenlabs_api_key, settings.elevenlabs_voice_id, text, settings.elevenlabs_model_id)
+    except Exception:
+        logger.exception("narration skipped")
+        return None
+    if row is None:
+        row = JournalAudio(user_id=user.id, week_start=week_start)
+        session.add(row)
+    row.voice_id = settings.elevenlabs_voice_id
+    row.text_sha = sha
+    row.audio = audio
+    session.add(UsageLog(purpose="tts", characters=len(text), created_at=datetime.now(timezone.utc)))
+    session.flush()
+    return audio
 
 
 def delete_user(session: Session, user: User) -> None:

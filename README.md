@@ -105,7 +105,7 @@ cd backend
 
 1. Create a GitHub OAuth app. Homepage `https://<service>.onrender.com`, callback `https://<service>.onrender.com/auth/github/callback`. Leave "Expire user access tokens" unchecked.
 2. In the Render dashboard set `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `SESSION_SECRET`, `TOKEN_FERNET_KEY` and `GITHUB_SCOPES=read:user`. Leave `GITHUB_OAUTH_CALLBACK_URL` empty.
-3. In the GitHub repository settings add the variable `RENDER_HEALTH_URL=https://<service>.onrender.com/healthz` and the secret `SYNC_SECRET` copied from Render. These drive the keep-alive ping and the nightly sync.
+3. In the GitHub repository settings (Secrets and variables, Actions) add the secret `SYNC_SECRET` with the same value as on Render; the nightly sync is skipped with a warning until it exists. The keep-alive ping and the sync default to `https://moss-garden-api.onrender.com`; for a different service, add the variable `RENDER_HEALTH_URL=https://<service>.onrender.com/healthz`.
 4. Optional AI: set `BACKBOARD_API_KEY`, `AI_ENABLED=true` and `AI_DAILY_REQUEST_BUDGET` above 0.
 
 Generate the two server secrets with:

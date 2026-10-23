@@ -419,7 +419,7 @@ def journal_audio(week_start: date, user: User = Depends(current_user), session:
     audio = journal_audio_for(session, user, week_start)
     if not audio:
         raise HTTPException(status_code=404, detail="No narration for this week")
-    return RawResponse(content=audio, media_type="audio/mpeg")
+    return RawResponse(content=audio, media_type="audio/mpeg", headers={"Cache-Control": "private, no-cache"})
 
 
 def database_ready() -> bool:

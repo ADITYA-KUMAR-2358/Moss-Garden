@@ -1,7 +1,8 @@
 """ElevenLabs speech and sound effects.
 
 Sound generation: POST /v1/sound-generation
-Narration: POST /v1/text-to-speech/{voice_id}
+Narration: POST /v1/text-to-speech/{voice_id}, model eleven_v4 by default
+https://elevenlabs.io/docs/overview/models
 https://elevenlabs.io/docs/api-reference/text-to-sound-effects/convert
 https://elevenlabs.io/docs/api-reference/text-to-speech/convert
 """
@@ -62,25 +63,36 @@ def generate_sound(
     )
 
 
-def narrate(api_key: str, voice_id: str, text: str) -> bytes:
+FALLBACK_MODEL = "eleven_multilingual_v2"
+_MODEL = re.compile(r"^[a-z0-9_]{3,40}$")
+
+
+def narrate(api_key: str, voice_id: str, text: str, model_id: str = "eleven_v4") -> bytes:
+    """Calm narration. Falls back to Multilingual v2 when the account cannot use the preferred model."""
     if not _VOICE.fullmatch(voice_id):
         raise ElevenLabsError("ELEVENLABS_VOICE_ID is missing or not a voice id")
+    if not _MODEL.fullmatch(model_id):
+        raise ElevenLabsError("ELEVENLABS_MODEL_ID is not a model id")
     cleaned = " ".join(text.split())
     if not cleaned:
         raise ElevenLabsError("Narration text is empty")
-    return _post(
-        f"/v1/text-to-speech/{voice_id}?output_format=mp3_44100_128",
-        api_key,
-        {
-            "text": cleaned[:1500],
-            "model_id": "eleven_multilingual_v2",
-            "voice_settings": {
-                "stability": 0.7,
-                "similarity_boost": 0.75,
-                "use_speaker_boost": True,
-            },
-        },
-    )
+    models = [model_id] if model_id == FALLBACK_MODEL else [model_id, FALLBACK_MODEL]
+    for index, model in enumerate(models):
+        try:
+            return _post(
+                f"/v1/text-to-speech/{voice_id}?output_format=mp3_44100_128",
+                api_key,
+                {
+                    "text": cleaned[:1500],
+                    "model_id": model,
+                    # v4 reads only stability and similarity; older models also accept speaker boost.
+                    "voice_settings": {"stability": 0.6, "similarity_boost": 0.75},
+                },
+            )
+        except ElevenLabsError:
+            if index == len(models) - 1:
+                raise
+    raise ElevenLabsError("ElevenLabs request failed")
 
 
 def subscription_character_count(api_key: str) -> int | None:

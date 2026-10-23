@@ -1,9 +1,12 @@
-import { Sound } from "../audio.js";
-import { useReadAloud } from "../speech.js";
+import { Play, Stop } from "@phosphor-icons/react";
+import { useNarration } from "../speech.js";
 
 export default function Journal({ garden }) {
   const body = garden.journal?.body;
-  const reader = useReadAloud(body ? `This week in the garden. ${body}` : "");
+  const narration = useNarration({
+    src: body && garden.journal.audio ? `/api/journal/${garden.journal.week_start}/audio` : null,
+    text: body ? `This week in the garden. ${body}` : "",
+  });
   if (!body) {
     return (
       <section className="sheet journal">
@@ -13,12 +16,9 @@ export default function Journal({ garden }) {
     );
   }
   const source = garden.journal.source === "rules" ? "From a template" : "Written by Gemma 4, an open-weight model";
-
-  async function listen() {
-    const response = await fetch(`/api/journal/${garden.journal.week_start}/audio`);
-    if (!response.ok) return;
-    Sound.playBlob(await response.blob());
-  }
+  const voiceNote = narration.voice === "elevenlabs"
+    ? "Narrated by an ElevenLabs voice, only when you press Listen."
+    : "Read aloud by your browser's voice, only when you press Listen.";
 
   return (
     <section className="sheet journal">
@@ -31,14 +31,25 @@ export default function Journal({ garden }) {
         <div><dt>XP this week</dt><dd>{garden.week.xp}</dd></div>
         <div><dt>Plants</dt><dd>{garden.plants.length}</dd></div>
       </dl>
-      <p className="caption">The text above is the transcript.</p>
-      {garden.journal.audio ? (
-        <button type="button" className="secondary" onClick={listen}>Listen</button>
-      ) : reader.supported ? (
-        <button type="button" className="secondary" aria-pressed={reader.speaking} onClick={reader.toggle}>
-          {reader.speaking ? "Stop reading" : "Read aloud"}
-        </button>
-      ) : null}
+      {narration.supported ? (
+        <div className="journal-listen">
+          <button
+            type="button"
+            className="secondary"
+            aria-pressed={narration.speaking}
+            aria-busy={narration.loading}
+            onClick={narration.toggle}
+          >
+            {narration.state === "idle"
+              ? <Play size={16} weight="fill" aria-hidden="true" />
+              : <Stop size={16} weight="fill" aria-hidden="true" />}
+            {narration.loading ? "Preparing the voice" : narration.speaking ? "Stop" : "Listen"}
+          </button>
+          <p className="caption" role="status">{voiceNote} The text above is the transcript.</p>
+        </div>
+      ) : (
+        <p className="caption">The text above is the full entry.</p>
+      )}
     </section>
   );
 }

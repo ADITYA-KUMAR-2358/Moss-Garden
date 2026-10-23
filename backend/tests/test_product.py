@@ -14,7 +14,7 @@ from app.config import Settings
 from app.db import get_engine
 from app.integrations.backboard import BackboardLLMClient
 from app.integrations.github import eligible_commit, parse_next_link
-from app.models import AiUsage, Base, CommitRecord, UsageLog, User, XpLedger
+from app.models import AiUsage, Base, CommitRecord, Journal, JournalAudio, UsageLog, User, XpLedger
 from app.integrations.elevenlabs import ElevenLabsError, generate_sound
 from app.services.garden import journal_audio_for, remember_projection, store_candidates
 from app.services.seed import seed_demo
@@ -154,30 +154,86 @@ def test_narration_is_skipped_over_the_monthly_cap(tmp_path, monkeypatch):
     called = []
     monkeypatch.setattr("app.integrations.elevenlabs.narrate", lambda *args, **kwargs: called.append(args) or b"mp3")
     view = remember_projection(session, user, date(2026, 10, 21))
-    assert called == []
     assert view["journal"]["audio"] is False
+    assert journal_audio_for(session, user, date.fromisoformat(view["journal"]["week_start"])) is None
+    assert called == []
 
 
-def test_narration_is_stored_once_per_week(tmp_path, monkeypatch):
+def _narration_env(monkeypatch, cap="3000"):
     monkeypatch.setenv("AUDIO_ENABLED", "true")
     monkeypatch.setenv("ELEVENLABS_API_KEY", "test-key")
     monkeypatch.setenv("ELEVENLABS_VOICE_ID", "CalmVoice1")
-    monkeypatch.setenv("ELEVENLABS_MONTHLY_CHAR_CAP", "3000")
+    monkeypatch.setenv("ELEVENLABS_MODEL_ID", "eleven_v4")
+    monkeypatch.setenv("ELEVENLABS_MONTHLY_CHAR_CAP", cap)
+
+
+def test_narration_waits_for_listen_and_is_stored_once(tmp_path, monkeypatch):
+    _narration_env(monkeypatch)
     session = _session(tmp_path)
     user = seed_demo(session, today=date(2026, 10, 21))
     called = []
 
-    def narrate(_api_key, _voice_id, text):
-        called.append(text)
+    def narrate(_api_key, _voice_id, text, model_id):
+        called.append((text, model_id))
         return b"mp3-bytes"
 
     monkeypatch.setattr("app.integrations.elevenlabs.narrate", narrate)
     first = remember_projection(session, user, date(2026, 10, 21))
-    second = remember_projection(session, user, date(2026, 10, 21))
+    remember_projection(session, user, date(2026, 10, 21))
     assert first["journal"]["audio"] is True
-    assert second["journal"]["audio"] is True
+    assert called == []
+    week = date.fromisoformat(first["journal"]["week_start"])
+    assert journal_audio_for(session, user, week) == b"mp3-bytes"
+    assert journal_audio_for(session, user, week) == b"mp3-bytes"
     assert len(called) == 1
+    assert called[0] == (" ".join(first["journal"]["body"].split()), "eleven_v4")
     spent = session.scalar(select(func.sum(UsageLog.characters)).where(UsageLog.purpose == "tts"))
-    assert spent == len(called[0])
-    audio = journal_audio_for(session, user, date.fromisoformat(first["journal"]["week_start"]))
-    assert audio == b"mp3-bytes"
+    assert spent == len(called[0][0])
+
+
+def test_narration_is_redone_when_the_journal_text_changes(tmp_path, monkeypatch):
+    _narration_env(monkeypatch)
+    session = _session(tmp_path)
+    user = seed_demo(session, today=date(2026, 10, 21))
+    takes = iter([b"first-take", b"second-take"])
+    monkeypatch.setattr("app.integrations.elevenlabs.narrate", lambda *args: next(takes))
+    view = remember_projection(session, user, date(2026, 10, 21))
+    week = date.fromisoformat(view["journal"]["week_start"])
+    assert journal_audio_for(session, user, week) == b"first-take"
+    journal = session.scalar(select(Journal).where(Journal.user_id == user.id, Journal.week_start == week))
+    journal.body = journal.body + " A new fern arrived."
+    session.flush()
+    assert journal_audio_for(session, user, week) == b"second-take"
+    assert session.scalar(select(func.count(JournalAudio.id)).where(JournalAudio.user_id == user.id)) == 1
+
+
+def test_failed_narration_stores_nothing(tmp_path, monkeypatch):
+    _narration_env(monkeypatch)
+    session = _session(tmp_path)
+    user = seed_demo(session, today=date(2026, 10, 21))
+
+    def broken(*_args):
+        raise ElevenLabsError("down")
+
+    monkeypatch.setattr("app.integrations.elevenlabs.narrate", broken)
+    view = remember_projection(session, user, date(2026, 10, 21))
+    assert journal_audio_for(session, user, date.fromisoformat(view["journal"]["week_start"])) is None
+    assert session.scalar(select(func.count(UsageLog.id)).where(UsageLog.purpose == "tts")) == 0
+
+
+def test_narrate_falls_back_to_multilingual_v2(monkeypatch):
+    from app.integrations import elevenlabs
+
+    tried = []
+
+    def post(path, _key, body):
+        tried.append(body["model_id"])
+        if body["model_id"] == "eleven_v4":
+            raise ElevenLabsError("model unavailable")
+        return b"mp3"
+
+    monkeypatch.setattr(elevenlabs, "_post", post)
+    assert elevenlabs.narrate("key", "CalmVoice1", "Moss settled.") == b"mp3"
+    assert tried == ["eleven_v4", "eleven_multilingual_v2"]
+    with pytest.raises(ElevenLabsError):
+        elevenlabs.narrate("key", "CalmVoice1", "Moss settled.", "bad model!")
