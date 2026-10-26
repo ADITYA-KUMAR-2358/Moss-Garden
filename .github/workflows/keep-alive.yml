@@ -15,8 +15,12 @@ jobs:
     steps:
       - name: Ping the health check
         env:
-          URL: ${{ vars.RENDER_HEALTH_URL || 'https://moss-garden-api.onrender.com' }}
+          URL: ${{ vars.RENDER_HEALTH_URL }}
         run: |
+          if [ -z "$URL" ]; then
+            echo "::error title=Keep-alive skipped::Set the repository variable RENDER_HEALTH_URL to the service health URL."
+            exit 1
+          fi
           curl --fail --show-error --retry 6 --retry-delay 15 --retry-all-errors --max-time 90 "$URL"
           echo
           echo "Health check answered."

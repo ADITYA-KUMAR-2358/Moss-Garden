@@ -13,5 +13,7 @@ frontend/node_modules/
 reports/junit.xml
 .cursor/
 reports/
+!reports/
+!reports/testing-report.xlsx
 docs
 AGENTS.md

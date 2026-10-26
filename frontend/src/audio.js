@@ -105,6 +105,17 @@ function fade(audio, to, ms) {
   requestAnimationFrame(step);
 }
 
+function cancelFade(audio) {
+  if (audio) audio._fade = null;
+}
+
+function playClip(audio) {
+  cancelFade(audio);
+  return audio.play().catch(() => {
+    // The next user gesture retries playback through armGesture.
+  });
+}
+
 function bedFor() {
   if (scene.springLevel == null || scene.rainLevel == null) return null;
   if (scene.season === "rain" && scene.level >= scene.springLevel) return "ambient-spring";
@@ -132,7 +143,7 @@ function syncAmbient() {
       const audio = load(bed);
       audio.loop = true;
       audio.volume = 0;
-      audio.play().catch(() => {});
+      playClip(audio);
       fade(audio, ambientGain(), FADE_MS);
     }
   }
@@ -142,7 +153,7 @@ function syncAmbient() {
     rainClip.loop = true;
     if (rainClip.paused) {
       rainClip.volume = 0;
-      rainClip.play().catch(() => {});
+      playClip(rainClip);
     }
     fade(rainClip, ambientGain() * 0.85, FADE_MS);
   } else if (rainClip && !rainClip.paused) {
@@ -159,9 +170,10 @@ function syncMusic() {
   musicClip.loop = true;
   if (musicClip.paused) {
     musicClip.volume = 0;
-    musicClip.play().catch(() => {});
+    playClip(musicClip);
     fade(musicClip, musicGain(), FADE_MS);
   } else {
+    cancelFade(musicClip);
     musicClip.volume = musicGain();
   }
 }
@@ -193,7 +205,7 @@ function startEffect(name) {
     if (activeEffect === audio) activeEffect = null;
     pump();
   };
-  audio.play().catch(() => {});
+  playClip(audio);
 }
 
 function play(name) {
@@ -229,7 +241,7 @@ function playBlob(blob) {
     if (activeEffect === audio) activeEffect = null;
     URL.revokeObjectURL(url);
   };
-  audio.play().catch(() => {});
+  playClip(audio);
 }
 
 function setEnabled(next) {
@@ -257,8 +269,7 @@ function restoreAudioPreference() {
 
 function armGesture() {
   const release = () => {
-    window.removeEventListener("pointerdown", release);
-    if (!enabled || unlocked) return;
+    if (!enabled) return;
     unlocked = true;
     preload();
     syncMusic();

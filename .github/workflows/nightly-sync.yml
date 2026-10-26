@@ -1,7 +1,7 @@
 # Render cron jobs have no free plan, so GitHub Actions starts the nightly garden sync.
 # The web service runs the sync in the background and answers 202 straight away.
 # Needs the repository secret SYNC_SECRET, copied from the Render dashboard; without it the run is skipped.
-# RENDER_HEALTH_URL (shared with keep-alive.yml) is optional and defaults to the live service.
+# RENDER_HEALTH_URL (shared with keep-alive.yml) must be configured as a repository variable.
 name: Nightly garden sync
 
 on:
@@ -15,9 +15,13 @@ jobs:
     steps:
       - name: Start the sync
         env:
-          HEALTH_URL: ${{ vars.RENDER_HEALTH_URL || 'https://moss-garden-api.onrender.com/healthz' }}
+          HEALTH_URL: ${{ vars.RENDER_HEALTH_URL }}
           SYNC_SECRET: ${{ secrets.SYNC_SECRET }}
         run: |
+          if [ -z "$HEALTH_URL" ]; then
+            echo "::error title=Nightly sync skipped::Set the repository variable RENDER_HEALTH_URL to the service health URL."
+            exit 1
+          fi
           if [ -z "$SYNC_SECRET" ]; then
             echo "::warning title=Nightly sync skipped::Add the repository secret SYNC_SECRET (same value as on Render) to run the nightly sync."
             exit 0
