@@ -15,12 +15,17 @@ jobs:
     steps:
       - name: Ping the health check
         env:
-          URL: ${{ vars.RENDER_HEALTH_URL }}
+          URL: ${{ secrets.RENDER_HEALTH_URL || vars.RENDER_HEALTH_URL }}
         run: |
           if [ -z "$URL" ]; then
-            echo "::error title=Keep-alive skipped::Set the repository variable RENDER_HEALTH_URL to the service health URL."
-            exit 1
+            echo "::notice::RENDER_HEALTH_URL is not set, so there is nothing to ping. Add it as a repository secret or variable."
+            exit 0
           fi
+          URL="${URL%/}"
+          case "$URL" in
+            */healthz) ;;
+            *) URL="$URL/healthz" ;;
+          esac
           curl --fail --show-error --retry 6 --retry-delay 15 --retry-all-errors --max-time 90 "$URL"
           echo
           echo "Health check answered."

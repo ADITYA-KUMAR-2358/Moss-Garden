@@ -1,7 +1,8 @@
 # Render cron jobs have no free plan, so GitHub Actions starts the nightly garden sync.
 # The web service runs the sync in the background and answers 202 straight away.
 # Needs the repository secret SYNC_SECRET, copied from the Render dashboard; without it the run is skipped.
-# RENDER_HEALTH_URL (shared with keep-alive.yml) must be configured as a repository variable.
+# RENDER_HEALTH_URL (shared with keep-alive.yml) may be configured as a repository
+# secret or variable. SYNC_SECRET must be a repository secret.
 name: Nightly garden sync
 
 on:
@@ -15,18 +16,19 @@ jobs:
     steps:
       - name: Start the sync
         env:
-          HEALTH_URL: ${{ vars.RENDER_HEALTH_URL }}
+          HEALTH_URL: ${{ secrets.RENDER_HEALTH_URL || vars.RENDER_HEALTH_URL }}
           SYNC_SECRET: ${{ secrets.SYNC_SECRET }}
         run: |
           if [ -z "$HEALTH_URL" ]; then
-            echo "::error title=Nightly sync skipped::Set the repository variable RENDER_HEALTH_URL to the service health URL."
-            exit 1
+            echo "::notice::RENDER_HEALTH_URL is not set, so nightly sync is skipped. Add it as a repository secret or variable."
+            exit 0
           fi
           if [ -z "$SYNC_SECRET" ]; then
             echo "::warning title=Nightly sync skipped::Add the repository secret SYNC_SECRET (same value as on Render) to run the nightly sync."
             exit 0
           fi
-          BASE="${HEALTH_URL%/healthz}"
+          BASE="${HEALTH_URL%/}"
+          BASE="${BASE%/healthz}"
           curl --fail --show-error --retry 6 --retry-delay 15 --retry-all-errors --max-time 90 \
             -X POST -H "Authorization: Bearer $SYNC_SECRET" "$BASE/api/jobs/nightly"
           echo
