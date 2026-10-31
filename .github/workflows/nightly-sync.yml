@@ -1,8 +1,7 @@
-# Render cron jobs have no free plan, so GitHub Actions starts the nightly garden sync.
-# The web service runs the sync in the background and answers 202 straight away.
-# Needs the repository secret SYNC_SECRET, copied from the Render dashboard; without it the run is skipped.
-# RENDER_HEALTH_URL (shared with keep-alive.yml) may be configured as a repository
-# secret or variable. SYNC_SECRET must be a repository secret.
+# GitHub Actions starts the nightly garden sync for Render or Vercel.
+# The request-bound job completes before the endpoint responds.
+# MOSS_GARDEN_URL may be configured as a repository secret or variable; the
+# legacy RENDER_HEALTH_URL name remains supported. SYNC_SECRET must be a secret.
 name: Nightly garden sync
 
 on:
@@ -16,15 +15,15 @@ jobs:
     steps:
       - name: Start the sync
         env:
-          HEALTH_URL: ${{ secrets.RENDER_HEALTH_URL || vars.RENDER_HEALTH_URL }}
+          HEALTH_URL: ${{ secrets.MOSS_GARDEN_URL || vars.MOSS_GARDEN_URL || secrets.RENDER_HEALTH_URL || vars.RENDER_HEALTH_URL }}
           SYNC_SECRET: ${{ secrets.SYNC_SECRET }}
         run: |
           if [ -z "$HEALTH_URL" ]; then
-            echo "::notice::RENDER_HEALTH_URL is not set, so nightly sync is skipped. Add it as a repository secret or variable."
+            echo "::notice::MOSS_GARDEN_URL is not set, so nightly sync is skipped. Add it as a repository secret or variable."
             exit 0
           fi
           if [ -z "$SYNC_SECRET" ]; then
-            echo "::warning title=Nightly sync skipped::Add the repository secret SYNC_SECRET (same value as on Render) to run the nightly sync."
+            echo "::warning title=Nightly sync skipped::Add the repository secret SYNC_SECRET (same value as the backend service) to run the nightly sync."
             exit 0
           fi
           BASE="${HEALTH_URL%/}"

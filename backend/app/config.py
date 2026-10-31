@@ -91,7 +91,7 @@ class Settings(BaseSettings):
     github_client_secret: str | None = None
     github_app_slug: str | None = None
     github_oauth_callback_url: str | None = None
-    # Render sets this on every web service, e.g. https://moss-garden-api.onrender.com
+    # Kept for the existing Render deployment. Vercel uses the explicit callback URL.
     render_external_url: str | None = None
 
     backboard_api_key: str | None = None
@@ -116,6 +116,7 @@ class Settings(BaseSettings):
     token_fernet_key: str | None = None
     sync_secret: str | None = None
     demo_seed: bool = True
+    serve_frontend: bool = True
 
     @field_validator("database_url", mode="before")
     @classmethod

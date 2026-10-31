@@ -1,6 +1,7 @@
 """HTTP entrypoint."""
 
 import logging
+import os
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -102,7 +103,9 @@ def create_app() -> FastAPI:
             return
         try:
             engine = get_engine()
-            Base.metadata.create_all(engine)
+            # Production schemas are managed by Alembic before deployment.
+            if settings.environment != "production":
+                Base.metadata.create_all(engine)
             if settings.demo_seed:
                 session = get_sessionmaker()()
                 try:
@@ -113,39 +116,41 @@ def create_app() -> FastAPI:
         except Exception:
             logger.exception("database init failed")
 
-    @app.get("/favicon.ico", include_in_schema=False)
-    @app.get("/favicon.svg", include_in_schema=False)
-    @app.get("/favicon-32.png", include_in_schema=False)
-    @app.get("/apple-touch-icon.png", include_in_schema=False)
-    def icon(request: Request):
-        name = Path(request.url.path).name
-        for root in (PUBLIC, DIST):
-            file = root / name
-            if file.is_file():
-                return FileResponse(file, media_type=ICONS.get(name))
-        return JSONResponse({"detail": "Icon is missing"}, status_code=404)
-
     @app.get("/healthz")
     def healthz() -> dict[str, str]:
         return {"status": "ok"}
 
-    @app.get("/")
-    def index():
-        page = DIST / "index.html"
-        if not page.exists():
-            return JSONResponse(
-                {"detail": "React build is missing. From frontend/, run npm install and npm run build."},
-                status_code=503,
-            )
-        # Asset names change on every build, so the page that lists them must be revalidated.
-        return FileResponse(page, headers={"Cache-Control": "no-cache"})
+    # Render and local Docker still use the combined image. Vercel sets VERCEL=1
+    # for the backend service, so frontend paths remain owned by the frontend service.
+    if get_settings().serve_frontend and os.environ.get("VERCEL") != "1":
+        @app.get("/favicon.ico", include_in_schema=False)
+        @app.get("/favicon.svg", include_in_schema=False)
+        @app.get("/favicon-32.png", include_in_schema=False)
+        @app.get("/apple-touch-icon.png", include_in_schema=False)
+        def icon(request: Request):
+            name = Path(request.url.path).name
+            for root in (PUBLIC, DIST):
+                file = root / name
+                if file.is_file():
+                    return FileResponse(file, media_type=ICONS.get(name))
+            return JSONResponse({"detail": "Icon is missing"}, status_code=404)
 
-    assets = DIST / "assets"
-    audio = DIST / "audio"
-    if assets.exists():
-        app.mount("/assets", StaticFiles(directory=assets), name="assets")
-    if audio.exists():
-        app.mount("/audio", StaticFiles(directory=audio), name="audio")
+        @app.get("/")
+        def index():
+            page = DIST / "index.html"
+            if not page.exists():
+                return JSONResponse(
+                    {"detail": "React build is missing. From frontend/, run npm install and npm run build."},
+                    status_code=503,
+                )
+            return FileResponse(page, headers={"Cache-Control": "no-cache"})
+
+        assets = DIST / "assets"
+        audio = DIST / "audio"
+        if assets.exists():
+            app.mount("/assets", StaticFiles(directory=assets), name="assets")
+        if audio.exists():
+            app.mount("/audio", StaticFiles(directory=audio), name="audio")
     return app
 
 

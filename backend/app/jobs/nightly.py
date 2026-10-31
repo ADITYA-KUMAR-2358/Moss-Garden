@@ -17,20 +17,17 @@ _running = threading.Lock()
 
 
 def start_nightly() -> bool:
-    """Run the sync in a background thread. Returns False if one is already running."""
+    """Run the sync before the request returns. Returns False if already running."""
     if not _running.acquire(blocking=False):
         return False
-
-    def work() -> None:
-        try:
-            run_nightly()
-        except Exception:
-            logger.exception("nightly sync failed")
-        finally:
-            _running.release()
-
-    threading.Thread(target=work, name="nightly-sync", daemon=True).start()
-    return True
+    try:
+        run_nightly()
+        return True
+    except Exception:
+        logger.exception("nightly sync failed")
+        raise
+    finally:
+        _running.release()
 
 
 def run_nightly() -> None:

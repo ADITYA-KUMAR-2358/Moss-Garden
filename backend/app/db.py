@@ -5,6 +5,7 @@ from collections.abc import Generator
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import NullPool
 
 from app.config import get_settings
 
@@ -22,8 +23,16 @@ def get_engine() -> Engine:
         raise RuntimeError(_MISSING_DATABASE_URL)
     url = settings.database_url
     if url not in _engines:
-        connect_args = {"check_same_thread": False} if url.startswith("sqlite") else {}
-        _engines[url] = create_engine(url, pool_pre_ping=True, connect_args=connect_args)
+        if url.startswith("sqlite"):
+            _engines[url] = create_engine(
+                url,
+                pool_pre_ping=True,
+                connect_args={"check_same_thread": False},
+            )
+        else:
+            # Vercel may run many short-lived function instances. Do not retain
+            # idle connections in each instance and exhaust the Postgres limit.
+            _engines[url] = create_engine(url, poolclass=NullPool, pool_pre_ping=True)
     return _engines[url]
 
 

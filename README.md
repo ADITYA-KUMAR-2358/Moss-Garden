@@ -117,6 +117,12 @@ python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().d
 
 Free Render Postgres expires 30 days after creation, and a free web service sleeps after 15 minutes without traffic. See [Render's free plan notes](https://render.com/docs/free).
 
+## Deploy on Vercel Services
+
+The repository also includes [`vercel.json`](vercel.json) for Vercel's Services architecture. It deploys `frontend/` and `backend/` independently in one project while keeping browser requests same-origin. `/api/*`, `/auth/*` and `/healthz` go to FastAPI; all other paths go to the Vite frontend.
+
+Use an externally hosted PostgreSQL database, set `SERVE_FRONTEND=false` on the backend service, run `alembic upgrade head` before the first production request, and set `GITHUB_OAUTH_CALLBACK_URL=https://mossgarden.tech/auth/github/callback`. The complete setup, environment matrix and scheduler guidance are in [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md#part-c-vercel-services).
+
 ## Privacy
 
 Moss Garden reads the commits you authored in repositories you choose (date, message and ID), the names of those repositories, and your public profile. It never reads your code, never writes to GitHub, and never shares your activity. The AI gardener, when you turn it on, receives garden counts and plant species only. You can export everything as JSON or delete it from Settings.
