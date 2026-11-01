@@ -1,11 +1,11 @@
 <p align="center">
-  <a href="https://moss-garden-api.onrender.com">
+  <a href="https://mossgarden.tech">
     <img src="frontend/public/repocard.png" alt="Moss Garden. Small commits. Slow growth. A garden that remembers. A slow-productivity game that turns your GitHub activity into a persistent garden." width="100%" />
   </a>
 </p>
 
 <p align="center">
-  <a href="https://moss-garden-api.onrender.com"><strong>Live site</strong></a> ·
+  <a href="https://mossgarden.tech"><strong>Live site</strong></a> ·
   <a href="docs/PRD.md">Product</a> ·
   <a href="docs/02-GAME-DESIGN.md">Game rules</a> ·
   <a href="docs/ARCHITECTURE.md">Architecture</a> ·
@@ -103,8 +103,8 @@ cd backend
 
 `render.yaml` creates a free Docker web service and a free Postgres database. The container runs migrations and then starts the server. The full guide, other hosts and a troubleshooting table are in [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
 
-1. Create a GitHub OAuth app. Homepage `https://<service>.onrender.com`, callback `https://<service>.onrender.com/auth/github/callback`. Leave "Expire user access tokens" unchecked.
-2. In the Render dashboard set `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `SESSION_SECRET`, `TOKEN_FERNET_KEY` and `GITHUB_SCOPES=read:user`. Leave `GITHUB_OAUTH_CALLBACK_URL` empty.
+1. Create a GitHub OAuth app. Homepage `https://mossgarden.tech`, callback `https://mossgarden.tech/auth/github/callback`. Leave "Expire user access tokens" unchecked.
+2. In the Render dashboard set `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET`, `SESSION_SECRET`, `TOKEN_FERNET_KEY`, `GITHUB_SCOPES=read:user` and `GITHUB_OAUTH_CALLBACK_URL=https://mossgarden.tech/auth/github/callback`.
 3. In the GitHub repository settings (Secrets and variables, Actions) add the secret `SYNC_SECRET` with the same value as on Render and `RENDER_HEALTH_URL` as either a repository secret or variable, containing the public service URL or its `/healthz` URL. GitHub-hosted runners cannot read a local or Render `.env` file, so these must be configured in Actions. The workflows skip with a notice when either value is missing.
 4. Optional AI: set `BACKBOARD_API_KEY`, `AI_ENABLED=true` and `AI_DAILY_REQUEST_BUDGET` above 0.
 

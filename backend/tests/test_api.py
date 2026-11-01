@@ -106,6 +106,21 @@ def test_production_github_sign_in_uses_the_render_address(tmp_path, monkeypatch
         assert "redirect_uri=https%3A%2F%2Fmoss-garden-api.onrender.com%2Fauth%2Fgithub%2Fcallback" in target
 
 
+def test_production_github_sign_in_prefers_the_custom_domain_callback(tmp_path, monkeypatch):
+    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'custom-domain.db'}")
+    monkeypatch.setenv("ENVIRONMENT", "production")
+    monkeypatch.setenv("SESSION_SECRET", "test-secret")
+    monkeypatch.setenv("RENDER_EXTERNAL_URL", "https://moss-garden-api.onrender.com")
+    monkeypatch.setenv("GITHUB_OAUTH_CALLBACK_URL", "https://mossgarden.tech/auth/github/callback")
+    monkeypatch.setenv("GITHUB_CLIENT_ID", "live-client")
+    monkeypatch.setenv("GITHUB_CLIENT_SECRET", "live-secret")
+    monkeypatch.setenv("TOKEN_FERNET_KEY", Fernet.generate_key().decode())
+    with TestClient(app) as client:
+        target = client.get("/auth/github", follow_redirects=False).headers["location"]
+        assert "redirect_uri=https%3A%2F%2Fmossgarden.tech%2Fauth%2Fgithub%2Fcallback" in target
+        assert "onrender.com" not in target
+
+
 def test_a_player_signs_in_with_their_github_account(tmp_path, monkeypatch):
     monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'player.db'}")
     monkeypatch.setenv("GITHUB_CLIENT_ID", "app-client")
